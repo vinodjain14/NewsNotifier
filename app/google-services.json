@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "855296868850",
+    "project_id": "newsnotifier-1fb2a",
+    "storage_bucket": "newsnotifier-1fb2a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:855296868850:android:a6856f7c734acfb0dbeb6b",
+        "android_client_info": {
+          "package_name": "com.example.newsnotifier"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "855296868850-qpj0515agpmsce6otudiif97emp15li3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.newsnotifier",
+            "certificate_hash": "e1f8250e66d4aa85e6bd755bda5dfca141fbe9e1"
+          }
+        },
+        {
+          "client_id": "855296868850-jnaq4a3f6qs7eandigfd50gtdtdjrrk8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAR5b_NUlwb3vy2JfLPiTHG1fcTWbdx_T8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "855296868850-jnaq4a3f6qs7eandigfd50gtdtdjrrk8.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

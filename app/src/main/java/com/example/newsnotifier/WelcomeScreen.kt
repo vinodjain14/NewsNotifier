@@ -9,15 +9,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.rememberCoroutineScope // Added import for rememberCoroutineScope
+import kotlinx.coroutines.launch // Import for snackbarHostState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WelcomeScreen(
-    onNavigateToSelection: () -> Unit,
-    onLoginClick: () -> Unit,
-    onCreateAccountClick: () -> Unit
+    onSignInWithGoogle: () -> Unit,
+    onNavigateToChooseAccount: () -> Unit, // New parameter for navigating to ChooseAccountScreen
+    onNavigateToSelection: () -> Unit, // For "Continue as Guest"
+    snackbarHostState: SnackbarHostState // Added snackbar host state
 ) {
+    val scope = rememberCoroutineScope()
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -44,7 +50,7 @@ fun WelcomeScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "Welcome to the Finance News Notifier!!!",
+                text = "Welcome to the Finance News Notifier!",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
@@ -54,26 +60,26 @@ fun WelcomeScreen(
 
             Spacer(Modifier.height(32.dp))
 
-            // Login Button
+            // Sign in with Google Button
             Button(
-                onClick = onLoginClick,
+                onClick = onSignInWithGoogle,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
             ) {
-                Text("Login", style = MaterialTheme.typography.titleMedium)
+                Text("Sign in with Google", style = MaterialTheme.typography.titleMedium)
             }
 
             Spacer(Modifier.height(16.dp))
 
-            // Create Account Button
+            // Choose Account Button (for email/password or other accounts)
             OutlinedButton(
-                onClick = onCreateAccountClick,
+                onClick = onNavigateToChooseAccount,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
             ) {
-                Text("Create Account", style = MaterialTheme.typography.titleMedium)
+                Text("Choose Account", style = MaterialTheme.typography.titleMedium)
             }
 
             Spacer(Modifier.height(16.dp))

@@ -7,16 +7,17 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape // Added import for CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Notifications // Added import for notification icon
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign // Added import for TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.newsnotifier.data.Subscription
 import com.example.newsnotifier.utils.SubscriptionManager
@@ -28,8 +29,8 @@ fun ManageSubscriptionsScreen(
     subscriptionManager: SubscriptionManager,
     onSubscriptionsChanged: () -> Unit,
     onNavigateToSelection: () -> Unit,
-    onNavigateToAllNotifications: () -> Unit, // NEW: Callback for notifications screen
-    snackbarHostState: SnackbarHostState // Pass SnackbarHostState
+    onNavigateToAllNotifications: () -> Unit, // Added missing parameter
+    snackbarHostState: SnackbarHostState // Added missing parameter
 ) {
     // This list will be observed for changes in SharedPreferences
     val subscriptions = remember { mutableStateListOf<Subscription>() }
@@ -37,6 +38,7 @@ fun ManageSubscriptionsScreen(
 
     // Update the list whenever the component is composed or recomposed,
     // ensuring it reflects the latest state from SubscriptionManager.
+    // This is crucial because subscriptions can be added/removed from the selection screen.
     LaunchedEffect(Unit) {
         subscriptions.clear()
         subscriptions.addAll(subscriptionManager.getSubscriptions())
@@ -65,12 +67,7 @@ fun ManageSubscriptionsScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                actions = {
-                    IconButton(onClick = onNavigateToAllNotifications) { // NEW: Notification icon
-                        Icon(Icons.Filled.Notifications, contentDescription = "All Notifications")
-                    }
-                }
+                )
             )
         }
     ) { paddingValues ->
@@ -99,13 +96,14 @@ fun ManageSubscriptionsScreen(
                         .fillMaxWidth()
                         .padding(16.dp),
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center // Added textAlign
                 )
             } else {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
+                        .weight(1f) // Take remaining space
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     items(subscriptions, key = { it.id }) { subscription ->
@@ -116,8 +114,8 @@ fun ManageSubscriptionsScreen(
                             canDelete = canDelete
                         ) { subToRemove ->
                             subscriptionManager.removeSubscription(subToRemove.id)
-                            subscriptions.remove(subToRemove)
-                            onSubscriptionsChanged()
+                            subscriptions.remove(subToRemove) // Update local state
+                            onSubscriptionsChanged() // Notify MainActivity to re-schedule worker
                             scope.launch {
                                 snackbarHostState.showSnackbar("Removed ${subToRemove.name}")
                             }
@@ -132,6 +130,13 @@ fun ManageSubscriptionsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Edit Subscriptions")
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = onNavigateToAllNotifications,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("View All Notifications")
             }
         }
     }

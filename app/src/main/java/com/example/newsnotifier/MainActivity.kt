@@ -24,12 +24,13 @@ import com.example.newsnotifier.utils.AuthManager
 import com.example.newsnotifier.utils.DataFetcher
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
+import android.content.Intent // Added import for Intent
+import androidx.lifecycle.lifecycleScope // Added import for lifecycleScope
 
 // Define an enum to represent the different screens in our app
 enum class Screen {
     Welcome,
-    CreateAccount,
-    Login,
+    ChooseAccount, // Re-added ChooseAccount screen
     Selection,
     Manage,
     MyProfile,
@@ -43,6 +44,31 @@ class MainActivity : ComponentActivity() {
     private lateinit var workManager: WorkManager
     private lateinit var authManager: AuthManager
     private var initialNotificationId: String? = null // To store notification ID from intent
+
+    // ActivityResultLauncher for Google Sign-In
+    private val googleSignInLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val data: Intent? = result.data
+            // Handle Google Sign-In result
+            lifecycleScope.launch { // Use lifecycleScope for coroutines tied to activity lifecycle
+                val success = authManager.firebaseAuthWithGoogle(data)
+                if (success) {
+                    // User successfully signed in with Google and authenticated with Firebase
+                    // The AuthManager's authStateListener will update loggedInUserFlow,
+                    // which in turn triggers UI recomposition and navigation.
+                } else {
+                    // Handle Google Sign-In failure (e.g., show a snackbar)
+                    // This snackbarHostState needs to be passed down or accessed differently if needed here.
+                    // For now, failure feedback will be handled by the UI composables.
+                }
+            }
+        } else {
+            // Handle Google Sign-In cancellation or other errors
+            // This will be handled by the UI composables.
+        }
+    }
 
     // Request notification permission for Android 13+
     private val requestPermissionLauncher = registerForActivityResult(
@@ -89,23 +115,32 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // Determine initial screen based on intent
-                    var currentScreen by remember {
-                        mutableStateOf(
-                            if (initialNotificationId != null) Screen.AllNotifications else Screen.Welcome
-                        )
-                    }
-
-                    // Observe current subscriptions from the manager's flow
-                    val currentSubscriptions by subscriptionManager.subscriptionsFlow.collectAsState(initial = emptyList())
-                    // Observe logged-in user state from AuthManager
-                    val loggedInUser by authManager.loggedInUserFlow.collectAsState(initial = null)
-                    val isLoggedIn = loggedInUser != null
-
                     // SnackbarHostState for showing messages across screens
                     val snackbarHostState = remember { SnackbarHostState() }
                     val scope = rememberCoroutineScope()
 
+                    // Observe logged-in user state from AuthManager
+                    val loggedInUser by authManager.loggedInUserFlow.collectAsState(initial = null)
+                    val isLoggedIn = loggedInUser != null
+
+                    // Determine initial screen based on intent or login state
+                    var currentScreen by remember {
+                        mutableStateOf(
+                            when {
+                                initialNotificationId != null -> Screen.AllNotifications
+                                isLoggedIn -> Screen.Selection // Go to Selection if already logged in
+                                else -> Screen.Welcome
+                            }
+                        )
+                    }
+
+                    // Effect to navigate after successful Google Sign-in
+                    LaunchedEffect(loggedInUser) {
+                        if (loggedInUser != null && currentScreen == Screen.Welcome) {
+                            currentScreen = Screen.Selection
+                            scope.launch { snackbarHostState.showSnackbar("Signed in as ${loggedInUser?.displayName ?: loggedInUser?.email}") }
+                        }
+                    }
 
                     // Callback to update subscriptions and schedule/reschedule the worker
                     val updateSubscriptionsAndScheduleWorker: () -> Unit = {
@@ -115,23 +150,19 @@ class MainActivity : ComponentActivity() {
                     when (currentScreen) {
                         Screen.Welcome -> {
                             WelcomeScreen(
-                                onNavigateToSelection = { currentScreen = Screen.Selection },
-                                onLoginClick = { currentScreen = Screen.Login },
-                                onCreateAccountClick = { currentScreen = Screen.CreateAccount }
-                            )
-                        }
-                        Screen.CreateAccount -> {
-                            CreateAccountScreen(
-                                authManager = authManager,
-                                onAccountCreated = { currentScreen = Screen.Login },
-                                onNavigateBack = { currentScreen = Screen.Welcome },
+                                onSignInWithGoogle = {
+                                    val signInIntent = authManager.getGoogleSignInIntent()
+                                    googleSignInLauncher.launch(signInIntent)
+                                },
+                                onNavigateToChooseAccount = { currentScreen = Screen.ChooseAccount }, // Navigate to ChooseAccount
+                                onNavigateToSelection = { currentScreen = Screen.Selection }, // For "Continue as Guest"
                                 snackbarHostState = snackbarHostState
                             )
                         }
-                        Screen.Login -> {
-                            LoginScreen(
+                        Screen.ChooseAccount -> { // New screen for choosing account
+                            ChooseAccountScreen(
                                 authManager = authManager,
-                                onLoginSuccess = { currentScreen = Screen.Selection },
+                                onNavigateToSelection = { currentScreen = Screen.Selection },
                                 onNavigateBack = { currentScreen = Screen.Welcome },
                                 snackbarHostState = snackbarHostState
                             )
@@ -139,7 +170,7 @@ class MainActivity : ComponentActivity() {
                         Screen.Selection -> {
                             SubscriptionSelectionScreen(
                                 subscriptionManager = subscriptionManager,
-                                currentActiveSubscriptions = currentSubscriptions,
+                                currentActiveSubscriptions = subscriptionManager.subscriptionsFlow.collectAsState().value, // Pass current subscriptions
                                 onSubscriptionsChanged = updateSubscriptionsAndScheduleWorker,
                                 onNavigateToManage = { currentScreen = Screen.Manage },
                                 onNavigateToWelcome = { currentScreen = Screen.Welcome },
@@ -166,7 +197,8 @@ class MainActivity : ComponentActivity() {
                             MyProfileScreen(
                                 authManager = authManager,
                                 onNavigateToSelection = { currentScreen = Screen.Selection },
-                                onNavigateBack = { currentScreen = Screen.Selection }
+                                onNavigateBack = { currentScreen = Screen.Selection },
+                                snackbarHostState = snackbarHostState // Pass snackbarHostState
                             )
                         }
                         Screen.AllNotifications -> {

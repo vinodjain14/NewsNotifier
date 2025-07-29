@@ -1,12 +1,12 @@
 package com.example.newsnotifier.data
 
 /**
- * Represents a user in the application.
- * WARNING: This stores a simple hash of the password for demonstration.
- * In a real application, never store passwords directly or use simple hashing.
+ * Data class representing a user in the application.
+ * Note: This is a simplified representation. In a real application,
+ * user data would typically be managed by FirebaseUser or a custom backend.
  */
 data class User(
-    val name: String,
-    val email: String,
-    val hashedPassword: String // In a real app, this would be a strong, salted hash
+    val uid: String, // Firebase User ID
+    val displayName: String?,
+    val email: String?
 )

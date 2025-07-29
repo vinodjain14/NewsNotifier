@@ -1,114 +1,89 @@
 package com.example.newsnotifier.utils
 
 import android.content.Context
-import android.content.SharedPreferences
-import com.example.newsnotifier.data.User
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken // Added import
+import android.content.Intent
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.GoogleAuthProvider
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.tasks.await
+import com.example.newsnotifier.R // Make sure this import is present and correct
 
 /**
- * Manages user authentication state using SharedPreferences.
- * WARNING: This is a simplified and INSECURE authentication manager for demonstration purposes.
- * Passwords are NOT securely hashed or stored. DO NOT use this in a production application.
- * For real apps, use Firebase Authentication, OAuth, or a secure backend.
+ * Manages user authentication state using Firebase Authentication.
  */
-class AuthManager(context: Context) {
+class AuthManager(private val context: Context) {
 
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
-    private val gson = Gson()
+    private val firebaseAuth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val googleSignInClient: GoogleSignInClient
 
-    private val KEY_LOGGED_IN_USER = "logged_in_user"
-    private val KEY_ALL_USERS = "all_users" // To store multiple registered users
-
-    // StateFlow to observe changes in the logged-in user
-    private val _loggedInUserFlow = MutableStateFlow<User?>(null)
-    val loggedInUserFlow: StateFlow<User?> = _loggedInUserFlow.asStateFlow()
+    // MutableStateFlow to hold the current logged-in user
+    private val _loggedInUserFlow = MutableStateFlow<FirebaseUser?>(null)
+    val loggedInUserFlow: StateFlow<FirebaseUser?> = _loggedInUserFlow.asStateFlow()
 
     init {
-        // Initialize the logged-in user state from SharedPreferences on startup
-        val userJson = prefs.getString(KEY_LOGGED_IN_USER, null)
-        _loggedInUserFlow.value = userJson?.let { gson.fromJson(it, User::class.java) }
-    }
+        // Configure Google Sign In to request the user's ID, email address, and basic profile.
+        // The ID token is required to authenticate with Firebase.
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(context.getString(R.string.default_web_client_id)) // This string is generated from google-services.json
+            .requestEmail()
+            .build()
 
-    /**
-     * Registers a new user.
-     * @return true if registration is successful, false if email already exists.
-     */
-    fun registerUser(name: String, email: String, password: String): Boolean {
-        val allUsers = getAllRegisteredUsers().toMutableList()
-        if (allUsers.any { it.email.equals(email, ignoreCase = true) }) {
-            return false // User with this email already exists
+        googleSignInClient = GoogleSignIn.getClient(context, gso)
+
+        // Listen for changes in the Firebase authentication state
+        firebaseAuth.addAuthStateListener { auth ->
+            _loggedInUserFlow.value = auth.currentUser
         }
-
-        // In a real app, hash the password securely before storing!
-        val newUser = User(name, email, password.hashCode().toString()) // Simple hash for demo
-        allUsers.add(newUser)
-        saveAllRegisteredUsers(allUsers)
-        return true
     }
 
     /**
-     * Logs in a user.
-     * @return true if login is successful, false otherwise.
+     * Provides the Intent needed to start the Google Sign-In flow.
      */
-    fun loginUser(email: String, password: String): Boolean {
-        val allUsers = getAllRegisteredUsers()
-        val user = allUsers.find { it.email.equals(email, ignoreCase = true) && it.hashedPassword == password.hashCode().toString() }
+    fun getGoogleSignInIntent(): Intent {
+        return googleSignInClient.signInIntent
+    }
 
-        return if (user != null) {
-            saveLoggedInUser(user)
-            _loggedInUserFlow.value = user // Update the flow
+    /**
+     * Handles the result from the Google Sign-In activity.
+     * Authenticates with Firebase using the Google ID token.
+     * @param data The Intent data from the activity result.
+     * @return True if authentication was successful, false otherwise.
+     */
+    suspend fun firebaseAuthWithGoogle(data: Intent?): Boolean {
+        return try {
+            val account = GoogleSignIn.getSignedInAccountFromIntent(data).await()
+            val credential = GoogleAuthProvider.getCredential(account.idToken, null)
+            firebaseAuth.signInWithCredential(credential).await()
             true
-        } else {
+        } catch (e: Exception) {
+            e.printStackTrace()
+            println("Firebase Google Auth failed: ${e.message}")
             false
         }
     }
 
     /**
-     * Logs out the current user.
+     * Logs out the current user from Firebase and Google Sign-In.
      */
     fun logoutUser() {
-        prefs.edit().remove(KEY_LOGGED_IN_USER).apply()
-        _loggedInUserFlow.value = null // Clear the flow
+        firebaseAuth.signOut()
+        googleSignInClient.signOut() // Also sign out from Google
     }
 
     /**
-     * Returns the currently logged-in user.
+     * Returns the currently logged-in Firebase user.
+     * This method is deprecated in favor of observing loggedInUserFlow.
+     * Use loggedInUserFlow.value directly or collectAsState() in Composables.
      */
-    fun getLoggedInUser(): User? {
-        return _loggedInUserFlow.value
-    }
-
-    /**
-     * Checks if a user is currently logged in.
-     */
-    fun isLoggedIn(): Boolean {
-        return _loggedInUserFlow.value != null
-    }
-
-    // --- Private helper methods for SharedPreferences ---
-
-    private fun saveLoggedInUser(user: User) {
-        val userJson = gson.toJson(user)
-        prefs.edit().putString(KEY_LOGGED_IN_USER, userJson).apply()
-    }
-
-    private fun getAllRegisteredUsers(): List<User> {
-        val json = prefs.getString(KEY_ALL_USERS, null)
-        return if (json != null) {
-            val type = object : TypeToken<List<User>>() {}.type
-            gson.fromJson(json, type)
-        } else {
-            emptyList()
-        }
-    }
-
-    private fun saveAllRegisteredUsers(users: List<User>) {
-        val json = gson.toJson(users)
-        prefs.edit().putString(KEY_ALL_USERS, json).apply()
+    @Deprecated("Use loggedInUserFlow.value or collectAsState() in Composables instead.")
+    fun getLoggedInUser(): FirebaseUser? {
+        return firebaseAuth.currentUser
     }
 }
+    

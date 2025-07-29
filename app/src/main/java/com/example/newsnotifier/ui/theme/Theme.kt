@@ -74,7 +74,7 @@ private val LightColorScheme = lightColorScheme(
     inverseOnSurface = md_theme_light_inverseOnSurface,
     inverseSurface = md_theme_light_inverseSurface,
     inversePrimary = md_theme_light_inversePrimary,
-    surfaceTint = md_theme_light_surfaceTint,
+    surfaceTint = md_theme_light_primary, // Changed to primary for consistent app bar color
     outlineVariant = md_theme_light_outlineVariant,
     scrim = md_theme_light_scrim,
 )
@@ -83,7 +83,7 @@ private val LightColorScheme = lightColorScheme(
 fun NewsNotifierTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = true, // Set to false if you don't want dynamic color
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -91,6 +91,7 @@ fun NewsNotifierTheme(
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
+
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }
@@ -98,15 +99,14 @@ fun NewsNotifierTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            // Removed deprecated window.statusBarColor line.
-            // Consider using enableEdgeToEdge() in MainActivity for system bar styling.
+            window.statusBarColor = colorScheme.primary.toArgb()
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
         }
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        typography = Typography, // Uses the default Typography defined in Type.kt
         content = content
     )
 }

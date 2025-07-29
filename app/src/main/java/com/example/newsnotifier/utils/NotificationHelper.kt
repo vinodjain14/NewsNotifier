@@ -76,8 +76,19 @@ object NotificationHelper {
      * @param title The title of the notification.
      * @param message The main text of the notification.
      * @param notificationId A unique ID for this notification.
+     * @param sourceName The name of the source (e.g., "Reuters", "Elon Musk").
+     * @param isBreaking True if the notification is for breaking news.
+     * @param isNew True if the notification is for new content (distinct from breaking).
      */
-    fun showNotification(context: Context, title: String, message: String, notificationId: Int) {
+    fun showNotification(
+        context: Context,
+        title: String,
+        message: String,
+        notificationId: Int,
+        sourceName: String,
+        isBreaking: Boolean = false,
+        isNew: Boolean = false
+    ) {
         // Ensure init has been called
         if (!::applicationContext.isInitialized) {
             init(context.applicationContext)
@@ -95,7 +106,14 @@ object NotificationHelper {
         }
 
         // Create a NotificationItem to store
-        val notificationItem = NotificationItem(UUID.randomUUID().toString(), title, message)
+        val notificationItem = NotificationItem(
+            id = UUID.randomUUID().toString(),
+            title = title,
+            message = message,
+            sourceName = sourceName,
+            isBreaking = isBreaking,
+            isNew = isNew
+        )
         saveNotification(notificationItem) // Save and update flow before building the notification
 
         // Create an Intent to open MainActivity when the notification is tapped
