@@ -83,14 +83,16 @@ fun AllNotificationsScreen(
         onNavigateBack()
     }
 
-    LaunchedEffect(notificationIdToFocus, allNotifications) {
-        if (notificationIdToFocus != null && allNotifications.isNotEmpty()) {
-            val index = allNotifications.indexOfFirst { it.id == notificationIdToFocus }
-            if (index != -1) {
-                lazyListState.animateScrollToItem(index)
-                showActionButtonsForNotificationId = notificationIdToFocus
-                scope.launch {
-                    snackbarHostState.showSnackbar("Focusing on notification: ${allNotifications[index].title}")
+    // FIXED: Simplified LaunchedEffect for focusing on notification
+    LaunchedEffect(notificationIdToFocus) {
+        if (notificationIdToFocus != null) {
+            showActionButtonsForNotificationId = notificationIdToFocus
+            scope.launch {
+                val notification = allNotifications.find { it.id == notificationIdToFocus }
+                if (notification != null) {
+                    snackbarHostState.showSnackbar("Focusing on notification: ${notification.title}")
+                } else {
+                    snackbarHostState.showSnackbar("Notification not found")
                 }
             }
         }
@@ -154,7 +156,7 @@ fun AllNotificationsScreen(
                 }
 
                 item {
-                    // Filter Chips - FIXED: Using LazyRow instead of FlowRow
+                    // Filter Chips
                     FilterChipsRow(
                         selectedFilter = selectedFilter,
                         onFilterChange = { selectedFilter = it },
@@ -326,7 +328,6 @@ private fun SummaryItem(
     }
 }
 
-// FIXED: Using LazyRow instead of FlowRow to avoid experimental API
 @Composable
 private fun FilterChipsRow(
     selectedFilter: String,

@@ -24,8 +24,8 @@ import com.example.newsnotifier.utils.AuthManager
 import com.example.newsnotifier.utils.DataFetcher
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
-import android.content.Intent // Added import for Intent
-import androidx.lifecycle.lifecycleScope // Added import for lifecycleScope
+import android.content.Intent
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.ui.graphics.Color
 import androidx.core.view.WindowCompat
@@ -33,7 +33,7 @@ import androidx.core.view.WindowCompat
 // Define an enum to represent the different screens in our app
 enum class Screen {
     Welcome,
-    ChooseAccount, // Re-added ChooseAccount screen
+    ChooseAccount,
     Selection,
     Manage,
     MyProfile,
@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var subscriptionManager: SubscriptionManager
     private lateinit var workManager: WorkManager
     private lateinit var authManager: AuthManager
-    private var initialNotificationId: String? = null // To store notification ID from intent
+    private var initialNotificationId: String? = null
 
     // ActivityResultLauncher for Google Sign-In
     private val googleSignInLauncher = registerForActivityResult(
@@ -55,21 +55,14 @@ class MainActivity : ComponentActivity() {
         if (result.resultCode == RESULT_OK) {
             val data: Intent? = result.data
             // Handle Google Sign-In result
-            lifecycleScope.launch { // Use lifecycleScope for coroutines tied to activity lifecycle
+            lifecycleScope.launch {
                 val success = authManager.firebaseAuthWithGoogle(data)
                 if (success) {
-                    // User successfully signed in with Google and authenticated with Firebase
-                    // The AuthManager's authStateListener will update loggedInUserFlow,
-                    // which in turn triggers UI recomposition and navigation.
+                    // User successfully signed in
                 } else {
-                    // Handle Google Sign-In failure (e.g., show a snackbar)
-                    // This snackbarHostState needs to be passed down or accessed differently if needed here.
-                    // For now, failure feedback will be handled by the UI composables.
+                    // Handle failure
                 }
             }
-        } else {
-            // Handle Google Sign-In cancellation or other errors
-            // This will be handled by the UI composables.
         }
     }
 
@@ -81,8 +74,7 @@ class MainActivity : ComponentActivity() {
             // Permission granted, can schedule work
             scheduleSubscriptionWorker()
         } else {
-            // Permission denied, inform user or disable notification features
-            // You might show a Snackbar or AlertDialog here
+            // Permission denied
         }
     }
 
@@ -93,7 +85,7 @@ class MainActivity : ComponentActivity() {
         authManager = AuthManager(this)
 
         // Initialize NotificationHelper and DataFetcher early
-        NotificationHelper.init(this) // Crucial for initializing notificationsFlow
+        NotificationHelper.init(this)
         DataFetcher.init(this)
 
         // Check for notification ID from the intent that launched the activity
@@ -118,8 +110,7 @@ class MainActivity : ComponentActivity() {
             NewsNotifierTheme {
                 // Apply system bars padding to avoid content being hidden behind system bars
                 Surface(
-                    modifier = Modifier.fillMaxSize().systemBarsPadding(), // Add this modifier
-                    //color = MaterialTheme.colorScheme.background
+                    modifier = Modifier.fillMaxSize().systemBarsPadding(),
                     color = Color.Transparent
                 ) {
                     // SnackbarHostState for showing messages across screens
@@ -135,7 +126,7 @@ class MainActivity : ComponentActivity() {
                         mutableStateOf(
                             when {
                                 initialNotificationId != null -> Screen.AllNotifications
-                                isLoggedIn -> Screen.Selection // Go to Selection if already logged in
+                                isLoggedIn -> Screen.Selection
                                 else -> Screen.Welcome
                             }
                         )
@@ -161,12 +152,12 @@ class MainActivity : ComponentActivity() {
                                     val signInIntent = authManager.getGoogleSignInIntent()
                                     googleSignInLauncher.launch(signInIntent)
                                 },
-                                onNavigateToChooseAccount = { currentScreen = Screen.ChooseAccount }, // Navigate to ChooseAccount
-                                onNavigateToSelection = { currentScreen = Screen.Selection }, // For "Continue as Guest"
+                                onNavigateToChooseAccount = { currentScreen = Screen.ChooseAccount },
+                                onNavigateToSelection = { currentScreen = Screen.Selection },
                                 snackbarHostState = snackbarHostState
                             )
                         }
-                        Screen.ChooseAccount -> { // New screen for choosing account
+                        Screen.ChooseAccount -> {
                             ChooseAccountScreen(
                                 authManager = authManager,
                                 onNavigateToSelection = { currentScreen = Screen.Selection },
@@ -177,7 +168,7 @@ class MainActivity : ComponentActivity() {
                         Screen.Selection -> {
                             SubscriptionSelectionScreen(
                                 subscriptionManager = subscriptionManager,
-                                currentActiveSubscriptions = subscriptionManager.subscriptionsFlow.collectAsState().value, // Pass current subscriptions
+                                currentActiveSubscriptions = subscriptionManager.subscriptionsFlow.collectAsState().value,
                                 onSubscriptionsChanged = updateSubscriptionsAndScheduleWorker,
                                 onNavigateToManage = { currentScreen = Screen.Manage },
                                 onNavigateToWelcome = { currentScreen = Screen.Welcome },
@@ -206,10 +197,9 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToSelection = { currentScreen = Screen.Selection },
                                 onNavigateBack = { currentScreen = Screen.Selection },
                                 onLogout = {
-                                    // FIXED: Proper logout navigation
                                     currentScreen = Screen.LoggedOut
-                                }, // ADD THIS LINE
-                                snackbarHostState = snackbarHostState // Pass snackbarHostState
+                                },
+                                snackbarHostState = snackbarHostState
                             )
                         }
                         Screen.AllNotifications -> {
@@ -247,16 +237,17 @@ class MainActivity : ComponentActivity() {
         val subscriptions = subscriptionManager.getSubscriptions()
 
         if (subscriptions.isNotEmpty()) {
+            // Use minimum allowed interval of 15 minutes for PeriodicWorkRequest
             val periodicWorkRequest = PeriodicWorkRequestBuilder<SubscriptionWorker>(
                 15, TimeUnit.MINUTES
             )
                 .addTag(workName)
                 .build()
 
-            // Enqueue the work. ExistingPeriodicWorkPolicy.UPDATE will update if already scheduled.
+            // Enqueue the work. ExistingPeriodicWorkPolicy.REPLACE will replace if already scheduled.
             workManager.enqueueUniquePeriodicWork(
                 workName,
-                ExistingPeriodicWorkPolicy.UPDATE,
+                ExistingPeriodicWorkPolicy.REPLACE,
                 periodicWorkRequest
             )
         } else {

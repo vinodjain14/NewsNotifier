@@ -1,6 +1,7 @@
 package com.example.newsnotifier.utils
 
 import android.content.Context
+import android.util.Log
 import com.example.newsnotifier.data.NotificationItem
 import com.example.newsnotifier.data.XTweet
 import com.google.gson.Gson
@@ -15,8 +16,9 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import com.google.gson.reflect.TypeToken // Added import for TypeToken
-import java.util.UUID // Added import for UUID
+import com.google.gson.reflect.TypeToken
+import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 /**
  * Object to handle fetching data from RSS feeds and X (Twitter) API.
@@ -24,17 +26,24 @@ import java.util.UUID // Added import for UUID
  */
 object DataFetcher {
 
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+
     private val gson = Gson()
 
     // In a real application, you would use a secure way to store and retrieve API keys,
     // e.g., BuildConfig fields, encrypted secrets, or a backend service.
     // For this demonstration, it's hardcoded.
-    private const val X_BEARER_TOKEN = "YOUR_X_BEARER_TOKEN" // Replace with your actual X API Bearer Token
+    private const val X_BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAAMkt3QEAAAAATkeB5GRoOD5ghkmnW3cEpd4n1O4%3DpEusbIgM21b7EBT7MOTOTitFtcHBbQL6piDAz7in0wsvUK2QOD" // Replace with your actual X API Bearer Token
 
     private const val LAST_FETCH_PREFS = "last_fetch_prefs"
-    private const val LAST_FETCH_TIMESTAMP_KEY_PREFIX = "last_fetch_" // Prefix for individual source timestamps
-    private const val LAST_TWEET_ID_KEY_PREFIX = "last_tweet_id_" // Prefix for last tweet ID for Twitter sources
+    private const val LAST_FETCH_TIMESTAMP_KEY_PREFIX = "last_fetch_"
+    private const val LAST_TWEET_ID_KEY_PREFIX = "last_tweet_id_"
+
+    private const val TAG = "DataFetcher"
 
     // MutableStateFlow to hold the current list of notifications and emit updates
     private val _notificationsFlow = MutableStateFlow<List<NotificationItem>>(emptyList())
@@ -49,9 +58,7 @@ object DataFetcher {
     fun init(context: Context) {
         if (!::applicationContext.isInitialized) {
             applicationContext = context.applicationContext
-            // Load initial notifications into the flow if needed, or manage separately
-            // For now, notifications are managed by NotificationHelper, but if DataFetcher
-            // were to directly expose a notifications list, it's would be initialized here.
+            Log.d(TAG, "DataFetcher initialized")
         }
     }
 
@@ -61,27 +68,47 @@ object DataFetcher {
      * @return A list of new articles (NotificationItem).
      */
     fun fetchRssFeed(feedUrl: String): List<NotificationItem> {
-        val request = Request.Builder().url(feedUrl).build()
-        val response = client.newCall(request).execute()
+        Log.d(TAG, "Fetching RSS feed: $feedUrl")
 
-        if (!response.isSuccessful) {
-            println("Failed to fetch RSS feed: $feedUrl, Code: ${response.code}")
-            return emptyList()
+        return try {
+            val request = Request.Builder()
+                .url(feedUrl)
+                .addHeader("User-Agent", "NOTT/1.0 (News Aggregator)")
+                .build()
+
+            val response = client.newCall(request).execute()
+
+            if (!response.isSuccessful) {
+                Log.e(TAG, "Failed to fetch RSS feed: $feedUrl, Code: ${response.code}")
+                return emptyList()
+            }
+
+            val responseBody = response.body?.string()
+            if (responseBody.isNullOrEmpty()) {
+                Log.e(TAG, "Empty response body for RSS feed: $feedUrl")
+                return emptyList()
+            }
+
+            Log.d(TAG, "RSS response received, length: ${responseBody.length}")
+            val articles = parseRssFeed(responseBody, feedUrl)
+            Log.d(TAG, "Parsed ${articles.size} articles from RSS feed")
+
+            val lastFetchTimestamp = getLastFetchTimestamp(feedUrl)
+            val newArticles = articles.filter { it.timestamp > lastFetchTimestamp }
+            Log.d(TAG, "Found ${newArticles.size} new articles since last fetch")
+
+            if (newArticles.isNotEmpty()) {
+                // Update last fetch timestamp to the latest article's timestamp or current time
+                val latestTimestamp = articles.maxOfOrNull { it.timestamp } ?: System.currentTimeMillis()
+                updateLastFetchTimestamp(feedUrl, latestTimestamp)
+                Log.d(TAG, "Updated last fetch timestamp for $feedUrl")
+            }
+
+            newArticles
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching RSS feed $feedUrl: ${e.message}", e)
+            emptyList()
         }
-
-        val responseBody = response.body?.string() ?: return emptyList()
-        val articles = parseRssFeed(responseBody)
-
-        val lastFetchTimestamp = getLastFetchTimestamp(feedUrl)
-        val newArticles = articles.filter { it.timestamp > lastFetchTimestamp }
-
-        if (newArticles.isNotEmpty()) {
-            // Update last fetch timestamp to the latest article's timestamp or current time
-            val latestTimestamp = articles.maxOfOrNull { it.timestamp } ?: System.currentTimeMillis()
-            updateLastFetchTimestamp(feedUrl, latestTimestamp)
-        }
-
-        return newArticles
     }
 
     /**
@@ -90,58 +117,73 @@ object DataFetcher {
      * @return A list of new tweets (XTweet).
      */
     fun fetchTweets(username: String): List<XTweet> {
+        Log.d(TAG, "Fetching tweets for: @$username")
+
         if (X_BEARER_TOKEN == "YOUR_X_BEARER_TOKEN") {
-            println("X_BEARER_TOKEN is not set. Cannot fetch tweets.")
+            Log.w(TAG, "X_BEARER_TOKEN is not set. Cannot fetch tweets for @$username")
             return emptyList()
         }
 
-        // 1. Get User ID from username
-        val userId = getUserIdFromUsername(username) ?: run {
-            println("Could not get user ID for @$username")
-            return emptyList()
-        }
-
-        // 2. Fetch user's tweets
-        val tweets = fetchUserTweetsTimeline(userId)
-
-        val lastTweetId = getLastTweetId(username)
-        val newTweets = if (lastTweetId == null) {
-            // If no last tweet ID, consider all fetched tweets as new (or just the latest few)
-            tweets.take(5) // Take a few recent ones on first fetch
-        } else {
-            // Filter tweets that are newer than the last stored tweet ID
-            tweets.filter { it.id > lastTweetId }
-        }
-
-        if (newTweets.isNotEmpty()) {
-            // Update last tweet ID to the newest tweet's ID
-            val newestTweetId = tweets.maxOfOrNull { it.id }
-            if (newestTweetId != null) {
-                updateLastTweetId(username, newestTweetId)
+        return try {
+            // 1. Get User ID from username
+            val userId = getUserIdFromUsername(username)
+            if (userId == null) {
+                Log.e(TAG, "Could not get user ID for @$username")
+                return emptyList()
             }
+
+            // 2. Fetch user's tweets
+            val tweets = fetchUserTweetsTimeline(userId)
+            Log.d(TAG, "Fetched ${tweets.size} tweets for @$username")
+
+            val lastTweetId = getLastTweetId(username)
+            val newTweets = if (lastTweetId == null) {
+                // If no last tweet ID, consider all fetched tweets as new (or just the latest few)
+                tweets.take(5) // Take a few recent ones on first fetch
+            } else {
+                // Filter tweets that are newer than the last stored tweet ID
+                tweets.filter { it.id > lastTweetId }
+            }
+
+            if (newTweets.isNotEmpty()) {
+                // Update last tweet ID to the newest tweet's ID
+                val newestTweetId = tweets.maxOfOrNull { it.id }
+                if (newestTweetId != null) {
+                    updateLastTweetId(username, newestTweetId)
+                }
+            }
+
+            Log.d(TAG, "Found ${newTweets.size} new tweets for @$username")
+            newTweets
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching tweets for @$username: ${e.message}", e)
+            emptyList()
         }
-        return newTweets
     }
 
     /**
      * Helper to get X User ID from username.
      */
     private fun getUserIdFromUsername(username: String): String? {
-        val request = Request.Builder()
-            .url("https://api.twitter.com/2/users/by/username/$username")
-            .header("Authorization", "Bearer $X_BEARER_TOKEN")
-            .build()
+        return try {
+            val request = Request.Builder()
+                .url("https://api.twitter.com/2/users/by/username/$username")
+                .header("Authorization", "Bearer $X_BEARER_TOKEN")
+                .build()
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) {
-            println("Failed to fetch user ID for @$username. Code: ${response.code}, Message: ${response.message}")
-            println("Response Body: ${response.body?.string()}")
-            return null
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                Log.e(TAG, "Failed to fetch user ID for @$username. Code: ${response.code}")
+                return null
+            }
+
+            val responseBody = response.body?.string() ?: return null
+            val userResponse = gson.fromJson(responseBody, com.example.newsnotifier.data.XUserResponse::class.java)
+            userResponse.data?.id
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting user ID for @$username: ${e.message}", e)
+            null
         }
-
-        val responseBody = response.body?.string() ?: return null
-        val userResponse = gson.fromJson(responseBody, com.example.newsnotifier.data.XUserResponse::class.java)
-        return userResponse.data?.id
     }
 
     /**
@@ -149,36 +191,42 @@ object DataFetcher {
      * Includes 'tweet.fields=created_at' to get timestamp.
      */
     private fun fetchUserTweetsTimeline(userId: String): List<XTweet> {
-        val request = Request.Builder()
-            .url("https://api.twitter.com/2/users/$userId/tweets?tweet.fields=created_at&max_results=10") // Fetch up to 10 recent tweets
-            .header("Authorization", "Bearer $X_BEARER_TOKEN")
-            .build()
+        return try {
+            val request = Request.Builder()
+                .url("https://api.twitter.com/2/users/$userId/tweets?tweet.fields=created_at&max_results=10")
+                .header("Authorization", "Bearer $X_BEARER_TOKEN")
+                .build()
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) {
-            println("Failed to fetch tweets for user ID $userId. Code: ${response.code}, Message: ${response.message}")
-            println("Response Body: ${response.body?.string()}")
-            return emptyList()
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                Log.e(TAG, "Failed to fetch tweets for user ID $userId. Code: ${response.code}")
+                return emptyList()
+            }
+
+            val responseBody = response.body?.string() ?: return emptyList()
+            val tweetsResponse = gson.fromJson(responseBody, com.example.newsnotifier.data.XTweetsResponse::class.java)
+            tweetsResponse.data ?: emptyList()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching tweets timeline for user $userId: ${e.message}", e)
+            emptyList()
         }
-
-        val responseBody = response.body?.string() ?: return emptyList()
-        val tweetsResponse = gson.fromJson(responseBody, com.example.newsnotifier.data.XTweetsResponse::class.java)
-        return tweetsResponse.data ?: emptyList()
     }
 
     /**
      * Parses an RSS feed XML string into a list of NotificationItem.
      */
-    private fun parseRssFeed(rssXml: String): List<NotificationItem> {
+    private fun parseRssFeed(rssXml: String, feedUrl: String): List<NotificationItem> {
+        Log.d(TAG, "Parsing RSS feed XML")
+
         val articles = mutableListOf<NotificationItem>()
-        var text: String? = null
         var title: String? = null
+        var description: String? = null
         var pubDate: String? = null
+        var link: String? = null
         var inItem = false
-        var sourceName: String = "Unknown Source" // Default source name
-        var isBreaking: Boolean = false // Default breaking status
-        var isNew: Boolean = false // Default new status
-        var tag: String? = null
+        var sourceName: String = extractSourceNameFromUrl(feedUrl)
+        var isBreaking: Boolean = false
+        var isNew: Boolean = true
 
         try {
             val factory = XmlPullParserFactory.newInstance()
@@ -187,30 +235,26 @@ object DataFetcher {
             parser.setInput(StringReader(rssXml))
 
             var eventType = parser.eventType
+            var text: String? = null
+
             while (eventType != XmlPullParser.END_DOCUMENT) {
                 val tagName = parser.name
                 when (eventType) {
                     XmlPullParser.START_TAG -> {
-                        if (tagName.equals("channel", ignoreCase = true)) {
-                            // Try to get source name from channel title
-                            var channelTitle: String? = null
-                            var nextEventType = parser.next()
-                            while (nextEventType != XmlPullParser.END_TAG || !parser.name.equals("channel", ignoreCase = true)) {
-                                if (nextEventType == XmlPullParser.START_TAG && parser.name.equals("title", ignoreCase = true)) {
-                                    parser.next() // Move to text
-                                    channelTitle = parser.text
-                                }
-                                nextEventType = parser.next()
+                        when {
+                            tagName.equals("channel", ignoreCase = true) -> {
+                                // Extract source name from channel title if possible
+                                sourceName = extractChannelTitle(parser) ?: sourceName
                             }
-                            channelTitle?.let { sourceName = it }
-                        } else if (tagName.equals("item", ignoreCase = true)) {
-                            inItem = true
-                            title = null
-                            pubDate = null
-                            text = null
-                            isBreaking = false // Reset for each item
-                            isNew = true // Assume new if just fetched
-                            tag = null
+                            tagName.equals("item", ignoreCase = true) -> {
+                                inItem = true
+                                title = null
+                                description = null
+                                pubDate = null
+                                link = null
+                                isBreaking = false
+                                isNew = true
+                            }
                         }
                     }
                     XmlPullParser.TEXT -> {
@@ -220,42 +264,40 @@ object DataFetcher {
                         when {
                             tagName.equals("item", ignoreCase = true) -> {
                                 inItem = false
-                                if (title != null && pubDate != null) {
-                                    val timestamp = parseRssPubDate(pubDate)
+                                if (title != null && !title.isBlank()) {
+                                    val timestamp = if (pubDate != null) parseRssPubDate(pubDate!!) else System.currentTimeMillis()
+
+                                    // Check for breaking news keywords
+                                    val titleLower = title!!.lowercase()
+                                    isBreaking = titleLower.contains("breaking") ||
+                                            titleLower.contains("urgent") ||
+                                            titleLower.contains("alert")
+
                                     articles.add(
                                         NotificationItem(
                                             id = UUID.randomUUID().toString(),
                                             title = title!!,
-                                            message = text ?: "",
+                                            message = description?.take(200) ?: "",
                                             sourceName = sourceName,
                                             timestamp = timestamp,
                                             isBreaking = isBreaking,
                                             isNew = isNew,
-                                            tag = tag
+                                            tag = if (isBreaking) "BREAKING" else if (isNew) "NEW" else null
                                         )
                                     )
                                 }
                             }
                             inItem && tagName.equals("title", ignoreCase = true) -> {
-                                title = text
+                                title = text?.trim()
                             }
                             inItem && tagName.equals("description", ignoreCase = true) -> {
-                                // Corrected: Directly assign to local 'text' variable
-                                if (text != null && text!!.isNotBlank()) {
-                                    if (text!!.contains("<") && text!!.contains(">")) {
-                                        text = text!!.replace(Regex("<.*?>"), "").trim()
-                                    } else {
-                                        text = text
-                                    }
-                                }
+                                description = text?.let { cleanHtmlTags(it) }?.trim()
                             }
                             inItem && tagName.equals("pubDate", ignoreCase = true) -> {
-                                pubDate = text
+                                pubDate = text?.trim()
                             }
-                            // Example: Custom tags in RSS for breaking news (not standard, but for demonstration)
-                            inItem && tagName.equals("breaking", ignoreCase = true) && text.toBoolean() -> {
-                                isBreaking = true
-                                tag = "BREAKING"
+                            inItem && tagName.equals("link", ignoreCase = true) -> {
+                                link = text?.trim()
                             }
                         }
                     }
@@ -263,10 +305,80 @@ object DataFetcher {
                 eventType = parser.next()
             }
         } catch (e: Exception) {
-            e.printStackTrace()
-            println("Error parsing RSS feed: ${e.message}")
+            Log.e(TAG, "Error parsing RSS feed: ${e.message}", e)
         }
+
+        Log.d(TAG, "Successfully parsed ${articles.size} articles")
         return articles
+    }
+
+    /**
+     * Extracts channel title from RSS XML
+     */
+    private fun extractChannelTitle(parser: XmlPullParser): String? {
+        return try {
+            var depth = 0
+            var eventType = parser.next()
+
+            while (eventType != XmlPullParser.END_DOCUMENT) {
+                when (eventType) {
+                    XmlPullParser.START_TAG -> {
+                        depth++
+                        if (parser.name.equals("title", ignoreCase = true) && depth == 1) {
+                            parser.next() // Move to text
+                            return parser.text?.trim()
+                        }
+                    }
+                    XmlPullParser.END_TAG -> {
+                        depth--
+                        if (depth < 0) break
+                    }
+                }
+                eventType = parser.next()
+            }
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error extracting channel title: ${e.message}", e)
+            null
+        }
+    }
+
+    /**
+     * Extracts source name from feed URL
+     */
+    private fun extractSourceNameFromUrl(url: String): String {
+        return try {
+            val domain = url.substringAfter("://").substringBefore("/")
+            when {
+                domain.contains("reuters") -> "Reuters"
+                domain.contains("bbc") -> "BBC News"
+                domain.contains("cnn") -> "CNN"
+                domain.contains("nytimes") -> "New York Times"
+                domain.contains("guardian") -> "The Guardian"
+                domain.contains("aljazeera") -> "Al Jazeera"
+                domain.contains("ndtv") -> "NDTV"
+                domain.contains("thehindu") -> "The Hindu"
+                domain.contains("economictimes") -> "Economic Times"
+                domain.contains("livemint") -> "LiveMint"
+                domain.contains("moneycontrol") -> "MoneyControl"
+                else -> domain.substringBefore(".").replaceFirstChar { it.uppercase() }
+            }
+        } catch (e: Exception) {
+            "RSS Feed"
+        }
+    }
+
+    /**
+     * Cleans HTML tags from text
+     */
+    private fun cleanHtmlTags(text: String): String {
+        return text.replace(Regex("<.*?>"), "")
+            .replace("&nbsp;", " ")
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .trim()
     }
 
     /**
@@ -285,7 +397,7 @@ object DataFetcher {
                 val instant = Instant.parse(pubDate)
                 instant.toEpochMilli()
             } catch (e2: Exception) {
-                println("Could not parse date: $pubDate. Error: ${e2.message}. Using current time.")
+                Log.w(TAG, "Could not parse date: $pubDate. Using current time.")
                 System.currentTimeMillis() // Fallback to current time
             }
         }
