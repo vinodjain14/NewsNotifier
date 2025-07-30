@@ -26,6 +26,9 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import android.content.Intent // Added import for Intent
 import androidx.lifecycle.lifecycleScope // Added import for lifecycleScope
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.ui.graphics.Color
+import androidx.core.view.WindowCompat
 
 // Define an enum to represent the different screens in our app
 enum class Screen {
@@ -110,10 +113,14 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
+            // Enable edge-to-edge display for modern UI
+            WindowCompat.setDecorFitsSystemWindows(window, false)
             NewsNotifierTheme {
+                // Apply system bars padding to avoid content being hidden behind system bars
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    modifier = Modifier.fillMaxSize().systemBarsPadding(), // Add this modifier
+                    //color = MaterialTheme.colorScheme.background
+                    color = Color.Transparent
                 ) {
                     // SnackbarHostState for showing messages across screens
                     val snackbarHostState = remember { SnackbarHostState() }
@@ -198,6 +205,10 @@ class MainActivity : ComponentActivity() {
                                 authManager = authManager,
                                 onNavigateToSelection = { currentScreen = Screen.Selection },
                                 onNavigateBack = { currentScreen = Screen.Selection },
+                                onLogout = {
+                                    // FIXED: Proper logout navigation
+                                    currentScreen = Screen.LoggedOut
+                                }, // ADD THIS LINE
                                 snackbarHostState = snackbarHostState // Pass snackbarHostState
                             )
                         }

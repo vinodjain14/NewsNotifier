@@ -1,41 +1,48 @@
 package com.example.newsnotifier
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState // Added import
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll // Added import
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.newsnotifier.data.AppDefaults
 import com.example.newsnotifier.data.Subscription
-import com.example.newsnotifier.data.SubscriptionType // Added import for SubscriptionType
-import com.example.newsnotifier.data.AppDefaults // Import AppDefaults
+import com.example.newsnotifier.data.SubscriptionType
+import com.example.newsnotifier.ui.components.*
+import com.example.newsnotifier.ui.theme.*
 import com.example.newsnotifier.utils.SubscriptionManager
 import kotlinx.coroutines.launch
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SubscriptionSelectionScreen(
     subscriptionManager: SubscriptionManager,
-    currentActiveSubscriptions: List<Subscription>, // Parameter to receive active subscriptions
+    currentActiveSubscriptions: List<Subscription>,
     onSubscriptionsChanged: () -> Unit,
     onNavigateToManage: () -> Unit,
-    onNavigateToWelcome: () -> Unit, // Added missing parameter
-    isLoggedIn: Boolean, // Added missing parameter
-    onLogout: () -> Unit, // Added missing parameter
-    onNavigateToProfile: () -> Unit, // Added missing parameter
-    snackbarHostState: SnackbarHostState // Added missing parameter
+    onNavigateToWelcome: () -> Unit,
+    isLoggedIn: Boolean,
+    onLogout: () -> Unit,
+    onNavigateToProfile: () -> Unit,
+    snackbarHostState: SnackbarHostState
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var newSubscriptionName by remember { mutableStateOf("") }
@@ -43,295 +50,480 @@ fun SubscriptionSelectionScreen(
     var newSubscriptionType by remember { mutableStateOf(SubscriptionType.TWITTER) }
     val scope = rememberCoroutineScope()
 
-    // State for predefined selections, initialized from currentActiveSubscriptions
     val selectedNewsChannels = remember { mutableStateListOf<AppDefaults.PredefinedSource>() }
     val selectedXPersonalities = remember { mutableStateListOf<AppDefaults.PredefinedSource>() }
 
-    // Initialize selections based on currentActiveSubscriptions when the screen is first shown
-    // or when currentActiveSubscriptions changes (e.g., navigating back from manage screen)
     LaunchedEffect(currentActiveSubscriptions) {
         selectedNewsChannels.clear()
         selectedXPersonalities.clear()
 
         currentActiveSubscriptions.forEach { activeSub ->
             AppDefaults.newsChannels.find { it.name == activeSub.name && it.sourceUrl == activeSub.sourceUrl }
-                ?.let {
-                    selectedNewsChannels.add(it)
-                }
+                ?.let { selectedNewsChannels.add(it) }
             AppDefaults.xPersonalities.find { it.name == activeSub.name && it.sourceUrl == activeSub.sourceUrl }
-                ?.let {
-                    selectedXPersonalities.add(it)
-                }
+                ?.let { selectedXPersonalities.add(it) }
         }
     }
 
-
-    // Check if minimum total selections are met (at least 2)
     val canSaveSelections by remember {
         derivedStateOf {
             (selectedNewsChannels.size + selectedXPersonalities.size) >= 2
         }
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = { Text("Choose Your Feeds") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .padding(paddingValues)
-                .fillMaxSize()
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()), // Make the entire column scrollable
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp) // Add spacing between sections
-        ) {
-            // General instruction
-            Text(
-                text = "Select at least 2 sources in total to get started:",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(8.dp))
-
-            // News Channels Section
-            Text(
-                text = "News Channels",
-                style = MaterialTheme.typography.headlineSmall, // Larger title
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp), // More prominent card
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                // Use FlowRow directly inside Card for chips, no need for LazyColumn here if not too many items
-                FlowRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp), // Increased padding
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    AppDefaults.newsChannels.forEach { channel ->
-                        FilterChip(
-                            selected = selectedNewsChannels.contains(channel),
-                            onClick = {
-                                if (selectedNewsChannels.contains(channel)) {
-                                    selectedNewsChannels.remove(channel)
-                                } else {
-                                    selectedNewsChannels.add(channel)
-                                }
-                            },
-                            label = { Text(channel.name) },
-                            leadingIcon = if (selectedNewsChannels.contains(channel)) {
-                                { Icon(Icons.Default.Check, contentDescription = "Selected") }
-                            } else null,
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
+    StaticGradientBackground(
+        colors = listOf(BackgroundLight, Color.White),
+        direction = GradientDirection.TopToBottom
+    ) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            "Choose Your Feeds",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp
                         )
-                    }
-                }
-            }
-
-            // X Personalities Section
-            Text(
-                text = "X Personalities",
-                style = MaterialTheme.typography.headlineSmall, // Larger title - Corrected typo
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp), // More prominent card
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                // Use FlowRow directly inside Card for chips
-                FlowRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp), // Increased padding
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    AppDefaults.xPersonalities.forEach { personality ->
-                        FilterChip(
-                            selected = selectedXPersonalities.contains(personality),
-                            onClick = {
-                                if (selectedXPersonalities.contains(personality)) {
-                                    selectedXPersonalities.remove(personality)
-                                } else {
-                                    selectedXPersonalities.add(personality)
-                                }
-                            },
-                            label = { Text(personality.name) },
-                            leadingIcon = if (selectedXPersonalities.contains(personality)) {
-                                { Icon(Icons.Default.Check, contentDescription = "Selected") }
-                            } else null,
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        )
-                    }
-                }
-            }
-
-            // "My Subscriptions" Button - NEW
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = onNavigateToManage,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("View My Subscriptions")
-            }
-            Spacer(Modifier.height(8.dp))
-
-
-            // Buttons at the bottom
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // "Add Manually" Button
-                ElevatedButton(
-                    onClick = { showAddDialog = true },
-                    modifier = Modifier.weight(1f).padding(end = 8.dp)
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add manually")
-                    Spacer(Modifier.width(4.dp))
-                    Text("Add Manually")
-                }
-
-                // "Save Selections" Button
-                Button(
-                    onClick = {
-                        // Clear existing subscriptions before adding new ones from selection
-                        // This ensures that deselected items are removed
-                        subscriptionManager.getSubscriptions().forEach { sub ->
-                            subscriptionManager.removeSubscription(sub.id)
-                        }
-
-                        // Add selected news channels
-                        selectedNewsChannels.forEach { predefinedSource ->
-                            val newSub = Subscription(
-                                id = UUID.randomUUID().toString(),
-                                name = predefinedSource.name,
-                                type = predefinedSource.type,
-                                sourceUrl = predefinedSource.sourceUrl
-                            )
-                            subscriptionManager.addSubscription(newSub)
-                        }
-                        // Add selected X personalities
-                        selectedXPersonalities.forEach { predefinedSource ->
-                            val newSub = Subscription(
-                                id = UUID.randomUUID().toString(),
-                                name = predefinedSource.name,
-                                type = predefinedSource.type,
-                                sourceUrl = predefinedSource.sourceUrl
-                            )
-                            subscriptionManager.addSubscription(newSub)
-                        }
-
-                        onSubscriptionsChanged() // Re-schedule worker with new subscriptions
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Subscriptions saved!")
-                        }
-                        onNavigateToManage() // Navigate to manage screen
                     },
-                    enabled = canSaveSelections,
-                    modifier = Modifier.weight(1f).padding(start = 8.dp)
-                ) {
-                    Text("Save Selections")
-                }
+                    actions = {
+                        IconButton(onClick = onNavigateToProfile) {
+                            Icon(Icons.Default.Settings, contentDescription = "Profile")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground
+                    )
+                )
             }
-
-
-            if (showAddDialog) {
-                AlertDialog(
-                    onDismissRequest = { showAddDialog = false },
-                    title = { Text("Add New Subscription Manually") },
-                    text = {
-                        Column {
-                            OutlinedTextField(
-                                value = newSubscriptionName,
-                                onValueChange = { newSubscriptionName = it },
-                                label = { Text("Name (e.g., Custom Blog, @AnotherUser)") },
-                                singleLine = true, // Added singleLine
-                                modifier = Modifier.fillMaxWidth()
+        ) { paddingValues ->
+            LazyColumn(
+                modifier = Modifier
+                    .padding(paddingValues)
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
+                contentPadding = PaddingValues(vertical = 16.dp)
+            ) {
+                item {
+                    // Header Section
+                    ElevatedModernCard(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Personalize Your Experience",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
                             )
-                            Spacer(Modifier.height(8.dp))
-                            OutlinedTextField(
-                                value = newSubscriptionSource,
-                                onValueChange = { newSubscriptionSource = it },
-                                label = { Text("Source (e.g., https://example.com/rss, @somehandle)") },
-                                singleLine = true, // Added singleLine
-                                modifier = Modifier.fillMaxWidth()
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Select at least 2 sources to get started with personalized news updates",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Spacer(Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Type:")
-                                Spacer(Modifier.width(8.dp))
-                                SubscriptionType.entries.forEach { type ->
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        RadioButton(
-                                            selected = (type == newSubscriptionType),
-                                            onClick = { newSubscriptionType = type }
-                                        )
-                                        Text(type.name) // .name is correct for enum entries
-                                    }
-                                }
+                        }
+                    }
+                }
+
+                item {
+                    // Selection Progress
+                    val totalSelected = selectedNewsChannels.size + selectedXPersonalities.size
+                    SelectionProgress(
+                        current = totalSelected,
+                        required = 2,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                item {
+                    // News Channels Section
+                    SourceSection(
+                        title = "📰 News Channels",
+                        subtitle = "Trusted news sources",
+                        sources = AppDefaults.newsChannels,
+                        selectedSources = selectedNewsChannels,
+                        onSourceToggle = { source ->
+                            if (selectedNewsChannels.contains(source)) {
+                                selectedNewsChannels.remove(source)
+                            } else {
+                                selectedNewsChannels.add(source)
                             }
                         }
-                    },
-                    confirmButton = {
-                        Button(
+                    )
+                }
+
+                item {
+                    // X Personalities Section
+                    SourceSection(
+                        title = "🐦 X Personalities",
+                        subtitle = "Follow influential voices",
+                        sources = AppDefaults.xPersonalities,
+                        selectedSources = selectedXPersonalities,
+                        onSourceToggle = { source ->
+                            if (selectedXPersonalities.contains(source)) {
+                                selectedXPersonalities.remove(source)
+                            } else {
+                                selectedXPersonalities.add(source)
+                            }
+                        }
+                    )
+                }
+
+                item {
+                    // Action Buttons
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        AnimatedGradientButton(
+                            text = "Save Selections",
                             onClick = {
-                                if (newSubscriptionName.isNotBlank() && newSubscriptionSource.isNotBlank()) {
+                                subscriptionManager.getSubscriptions().forEach { sub ->
+                                    subscriptionManager.removeSubscription(sub.id)
+                                }
+
+                                selectedNewsChannels.forEach { predefinedSource ->
                                     val newSub = Subscription(
                                         id = UUID.randomUUID().toString(),
-                                        name = newSubscriptionName,
-                                        type = newSubscriptionType,
-                                        sourceUrl = newSubscriptionSource
+                                        name = predefinedSource.name,
+                                        type = predefinedSource.type,
+                                        sourceUrl = predefinedSource.sourceUrl
                                     )
                                     subscriptionManager.addSubscription(newSub)
-                                    onSubscriptionsChanged() // Notify MainActivity to re-schedule worker
-                                    newSubscriptionName = ""
-                                    newSubscriptionSource = ""
-                                    showAddDialog = false
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Added ${newSub.name}")
-                                    }
-                                } else {
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Please fill all fields.")
-                                    }
                                 }
-                            }
+
+                                selectedXPersonalities.forEach { predefinedSource ->
+                                    val newSub = Subscription(
+                                        id = UUID.randomUUID().toString(),
+                                        name = predefinedSource.name,
+                                        type = predefinedSource.type,
+                                        sourceUrl = predefinedSource.sourceUrl
+                                    )
+                                    subscriptionManager.addSubscription(newSub)
+                                }
+
+                                onSubscriptionsChanged()
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Subscriptions saved!")
+                                }
+                                onNavigateToManage()
+                            },
+                            enabled = canSaveSelections,
+                            modifier = Modifier.fillMaxWidth(),
+                            icon = Icons.Default.Check
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text("Add")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showAddDialog = false }) {
-                            Text("Cancel")
+                            AnimatedOutlinedButton(
+                                text = "Add Manually",
+                                onClick = { showAddDialog = true },
+                                modifier = Modifier.weight(1f),
+                                icon = Icons.Default.Add
+                            )
+
+                            AnimatedOutlinedButton(
+                                text = "My Subscriptions",
+                                onClick = onNavigateToManage,
+                                modifier = Modifier.weight(1f),
+                                icon = Icons.Default.Settings
+                            )
                         }
                     }
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(20.dp))
+                }
+            }
+        }
+
+        if (showAddDialog) {
+            AddSubscriptionDialog(
+                name = newSubscriptionName,
+                onNameChange = { newSubscriptionName = it },
+                source = newSubscriptionSource,
+                onSourceChange = { newSubscriptionSource = it },
+                type = newSubscriptionType,
+                onTypeChange = { newSubscriptionType = it },
+                onConfirm = {
+                    if (newSubscriptionName.isNotBlank() && newSubscriptionSource.isNotBlank()) {
+                        val newSub = Subscription(
+                            id = UUID.randomUUID().toString(),
+                            name = newSubscriptionName,
+                            type = newSubscriptionType,
+                            sourceUrl = newSubscriptionSource
+                        )
+                        subscriptionManager.addSubscription(newSub)
+                        onSubscriptionsChanged()
+                        newSubscriptionName = ""
+                        newSubscriptionSource = ""
+                        showAddDialog = false
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Added ${newSub.name}")
+                        }
+                    } else {
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Please fill all fields.")
+                        }
+                    }
+                },
+                onDismiss = { showAddDialog = false }
+            )
+        }
+    }
+}
+
+@Composable
+private fun SelectionProgress(
+    current: Int,
+    required: Int,
+    modifier: Modifier = Modifier
+) {
+    ElevatedModernCard(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    text = "Selection Progress",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "$current of $required minimum sources selected",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(60.dp)
+                    .background(
+                        color = if (current >= required) Success else MaterialTheme.colorScheme.surfaceVariant,
+                        shape = androidx.compose.foundation.shape.CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = current.toString(),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (current >= required) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
     }
+}
+
+@Composable
+private fun SourceSection(
+    title: String,
+    subtitle: String,
+    sources: List<AppDefaults.PredefinedSource>,
+    selectedSources: List<AppDefaults.PredefinedSource>,
+    onSourceToggle: (AppDefaults.PredefinedSource) -> Unit
+) {
+    ElevatedModernCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // FIXED: Using LazyRow instead of FlowRow to avoid experimental API
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp)
+            ) {
+                items(sources) { source ->
+                    SourceChip(
+                        source = source,
+                        isSelected = selectedSources.contains(source),
+                        onClick = { onSourceToggle(source) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SourceChip(
+    source: AppDefaults.PredefinedSource,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val backgroundColor = if (isSelected) {
+        Primary
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+
+    val contentColor = if (isSelected) {
+        Color.White
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    ModernCard(
+        onClick = onClick,
+        backgroundColor = backgroundColor,
+        borderColor = if (isSelected) Primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = if (isSelected) Icons.Default.Check else Icons.Default.RadioButtonUnchecked,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.size(16.dp)
+                )
+
+                Text(
+                    text = source.name,
+                    color = contentColor,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                )
+            }
+
+            source.tag?.let { tag ->
+                Text(
+                    text = tag,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isSelected) Color.White.copy(alpha = 0.8f) else Primary,
+                    modifier = Modifier
+                        .background(
+                            color = if (isSelected) Color.White.copy(alpha = 0.2f) else Primary.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddSubscriptionDialog(
+    name: String,
+    onNameChange: (String) -> Unit,
+    source: String,
+    onSourceChange: (String) -> Unit,
+    type: SubscriptionType,
+    onTypeChange: (SubscriptionType) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Add Custom Source",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = onNameChange,
+                    label = { Text("Source Name") },
+                    placeholder = { Text("e.g., Custom Blog, @Username") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = source,
+                    onValueChange = onSourceChange,
+                    label = { Text("Source URL/Handle") },
+                    placeholder = { Text("e.g., https://example.com/rss, @handle") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Column {
+                    Text(
+                        "Source Type:",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        SubscriptionType.entries.forEach { subscriptionType ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                RadioButton(
+                                    selected = (subscriptionType == type),
+                                    onClick = { onTypeChange(subscriptionType) }
+                                )
+                                Text(
+                                    text = subscriptionType.name.replace("_", " "),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            AnimatedGradientButton(
+                text = "Add Source",
+                onClick = onConfirm,
+                modifier = Modifier.height(40.dp)
+            )
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+        shape = RoundedCornerShape(16.dp)
+    )
 }

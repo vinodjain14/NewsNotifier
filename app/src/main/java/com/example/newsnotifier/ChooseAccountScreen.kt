@@ -1,17 +1,14 @@
 package com.example.newsnotifier
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke // Added import for BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack // Added import for ArrowBack
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
@@ -21,9 +18,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.newsnotifier.ui.components.*
+import com.example.newsnotifier.ui.theme.*
 import com.example.newsnotifier.utils.AuthManager
 import kotlinx.coroutines.launch
 
@@ -42,119 +41,246 @@ fun ChooseAccountScreen(
         onNavigateBack()
     }
 
-    val swipeThreshold = with(LocalDensity.current) { 100.dp.toPx() }
-    val currentDragOffset = remember { mutableFloatStateOf(0f) }
-
-    val draggableState = rememberDraggableState(
-        onDelta = { delta ->
-            currentDragOffset.floatValue += delta
-        }
-    )
-
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = { Text("Choose Account") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+    StaticGradientBackground(
+        colors = listOf(BackgroundLight, Color.White),
+        direction = GradientDirection.TopToBottom
+    ) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            "Choose Account",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground
+                    )
                 )
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .padding(paddingValues)
-                .fillMaxSize()
-                .padding(16.dp)
-                .draggable(
-                    state = draggableState,
-                    orientation = Orientation.Horizontal,
-                    onDragStopped = {
-                        if (currentDragOffset.floatValue > swipeThreshold) {
+            }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .padding(paddingValues)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Header Section
+                HeaderCard()
+
+                // Current User Section
+                loggedInUser?.let { user ->
+                    CurrentUserCard(
+                        user = user,
+                        onContinue = onNavigateToSelection
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                // Account Options
+                AccountOptionsCard(
+                    onUseAnotherAccount = {
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Feature: Use another account (Not implemented)")
+                        }
+                    }
+                )
+
+                // Sign Out Section
+                if (loggedInUser != null) {
+                    SignOutCard(
+                        onSignOut = {
+                            authManager.logoutUser()
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Logged out successfully.")
+                            }
                             onNavigateBack()
                         }
-                        currentDragOffset.floatValue = 0f
-                    }
-                ),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = "Select an account to continue:",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
-
-            // Current Logged-in User Card
-            loggedInUser?.let { user ->
-                AccountCard(
-                    icon = Icons.Filled.Person,
-                    title = user.displayName ?: user.email ?: "Guest User",
-                    description = user.email ?: "Logged in",
-                    onClick = {
-                        // Already logged in as this user, navigate to selection
-                        onNavigateToSelection()
-                    }
-                )
-                Spacer(Modifier.height(16.dp))
-            }
-
-            // Option to use another account (if needed, could lead to login/create)
-            AccountCard(
-                icon = Icons.Filled.Email,
-                title = "Use another account",
-                description = "Sign in or create a new account",
-                onClick = {
-                    // This could navigate to a login/create account flow
-                    scope.launch { snackbarHostState.showSnackbar("Feature: Use another account (Not implemented)") }
+                    )
                 }
-            )
 
-            Spacer(Modifier.height(32.dp))
-
-            // Logout Button
-            Button(
-                onClick = {
-                    authManager.logoutUser()
-                    scope.launch { snackbarHostState.showSnackbar("Logged out successfully.") }
-                    onNavigateBack() // Go back to Welcome screen
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("Sign Out", style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(20.dp))
             }
         }
     }
 }
 
 @Composable
-fun AccountCard(
+private fun HeaderCard() {
+    ElevatedModernCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(CircleShape)
+                    .background(
+                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                            colors = listOf(Primary, PrimaryDark)
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.Person,
+                    contentDescription = "Account",
+                    modifier = Modifier.size(40.dp),
+                    tint = Color.White
+                )
+            }
+
+            Text(
+                text = "Select Your Account",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                text = "Choose an account to continue with personalized news",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun CurrentUserCard(
+    user: com.google.firebase.auth.FirebaseUser,
+    onContinue: () -> Unit
+) {
+    ElevatedModernCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "Current Account",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            ModernAccountCard(
+                icon = Icons.Filled.Person,
+                title = user.displayName ?: "User",
+                description = user.email ?: "No email",
+                isSelected = true,
+                onClick = onContinue
+            )
+        }
+    }
+}
+
+@Composable
+private fun AccountOptionsCard(
+    onUseAnotherAccount: () -> Unit
+) {
+    ElevatedModernCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "Other Options",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            ModernAccountCard(
+                icon = Icons.Filled.Email,
+                title = "Use Another Account",
+                description = "Sign in with a different account or create new one",
+                isSelected = false,
+                onClick = onUseAnotherAccount
+            )
+        }
+    }
+}
+
+@Composable
+private fun SignOutCard(
+    onSignOut: () -> Unit
+) {
+    ElevatedModernCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "Account Actions",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            AnimatedGradientButton(
+                text = "Sign Out",
+                onClick = onSignOut,
+                modifier = Modifier.fillMaxWidth(),
+                gradientColors = listOf(Error, Error.copy(alpha = 0.8f))
+            )
+        }
+    }
+}
+
+@Composable
+private fun ModernAccountCard(
     icon: ImageVector,
     title: String,
     description: String,
+    isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    val backgroundColor = if (isSelected) {
+        Primary.copy(alpha = 0.1f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+    }
+
+    val borderColor = if (isSelected) {
+        Primary
+    } else {
+        Color.Transparent
+    }
+
+    ModernCard(
+        onClick = onClick,
+        backgroundColor = backgroundColor,
+        borderColor = borderColor,
+        borderWidth = if (isSelected) 2.dp else 0.dp,
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -162,26 +288,39 @@ fun AccountCard(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .background(
+                        if (isSelected) Primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(28.dp)
+                    tint = if (isSelected) Color.White else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
                 )
             }
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Selected",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }

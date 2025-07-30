@@ -1,98 +1,209 @@
 package com.example.newsnotifier
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.PersonOutline
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.rememberCoroutineScope // Added import for rememberCoroutineScope
-import kotlinx.coroutines.launch // Import for snackbarHostState
+import com.example.newsnotifier.ui.components.*
+import com.example.newsnotifier.ui.theme.*
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WelcomeScreen(
     onSignInWithGoogle: () -> Unit,
-    onNavigateToChooseAccount: () -> Unit, // New parameter for navigating to ChooseAccountScreen
-    onNavigateToSelection: () -> Unit, // For "Continue as Guest"
-    snackbarHostState: SnackbarHostState // Added snackbar host state
+    onNavigateToChooseAccount: () -> Unit,
+    onNavigateToSelection: () -> Unit,
+    snackbarHostState: SnackbarHostState
 ) {
     val scope = rememberCoroutineScope()
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "News On The Top",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary
+    GradientBackground(
+        isAnimated = true,
+        colors = listOf(
+            GradientStart,
+            GradientMiddle,
+            GradientEnd
+        )
+    ) {
+        // Floating elements for visual appeal
+        FloatingElements(elementCount = 4)
+
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = "News On The Top",
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 24.sp
+                            ),
+                            color = TextOnGradient
+                        )
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        titleContentColor = TextOnGradient
                     )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
                 )
-            )
+            }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .padding(paddingValues)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                Spacer(modifier = Modifier.height(40.dp))
+
+                // Hero Section
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Welcome to the Future",
+                            style = MaterialTheme.typography.headlineLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 32.sp
+                            ),
+                            color = TextOnGradient,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text(
+                            text = "Stay ahead with personalized news and real-time updates from your favorite sources",
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontSize = 18.sp,
+                                lineHeight = 26.sp
+                            ),
+                            color = TextOnGradient.copy(alpha = 0.9f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Action Buttons
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Sign in with Google Button
+                    AnimatedGradientButton(
+                        text = "Continue with Google",
+                        onClick = onSignInWithGoogle,
+                        icon = Icons.Filled.AccountCircle,
+                        modifier = Modifier.fillMaxWidth(),
+                        gradientColors = listOf(
+                            Color(0xFF4285F4),
+                            Color(0xFF1976D2)
+                        )
+                    )
+
+                    // Choose Account Button
+                    AnimatedOutlinedButton(
+                        text = "Choose Account",
+                        onClick = onNavigateToChooseAccount,
+                        icon = Icons.Filled.Email,
+                        modifier = Modifier.fillMaxWidth(),
+                        borderColor = Color.White,
+                        textColor = Color.White
+                    )
+
+                    // Guest Button
+                    AnimatedOutlinedButton(
+                        text = "Continue as Guest",
+                        onClick = onNavigateToSelection,
+                        icon = Icons.Filled.PersonOutline,
+                        modifier = Modifier.fillMaxWidth(),
+                        borderColor = Color.White.copy(alpha = 0.6f),
+                        textColor = Color.White.copy(alpha = 0.8f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(40.dp))
+
+                // Features Section
+                ElevatedModernCard(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+                        Text(
+                            text = "Why Choose NOTT?",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        FeatureItem(
+                            title = "Real-time Updates",
+                            description = "Get instant notifications from trusted news sources"
+                        )
+
+                        FeatureItem(
+                            title = "Personalized Feed",
+                            description = "Customize your news experience with your favorite topics"
+                        )
+
+                        FeatureItem(
+                            title = "Smart Filtering",
+                            description = "AI-powered filtering to show you what matters most"
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+            }
         }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .padding(paddingValues)
-                .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "Welcome to the Finance News Notifier!",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-                lineHeight = 36.sp,
-                modifier = Modifier.padding(bottom = 48.dp)
-            )
+    }
+}
 
-            Spacer(Modifier.height(32.dp))
-
-            // Sign in with Google Button
-            Button(
-                onClick = onSignInWithGoogle,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-            ) {
-                Text("Sign in with Google", style = MaterialTheme.typography.titleMedium)
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            // Choose Account Button (for email/password or other accounts)
-            OutlinedButton(
-                onClick = onNavigateToChooseAccount,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-            ) {
-                Text("Choose Account", style = MaterialTheme.typography.titleMedium)
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            // Continue as a Guest Button
-            TextButton(
-                onClick = onNavigateToSelection,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-            ) {
-                Text("Continue as a guest", style = MaterialTheme.typography.titleMedium)
-            }
-        }
+@Composable
+private fun FeatureItem(
+    title: String,
+    description: String
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
