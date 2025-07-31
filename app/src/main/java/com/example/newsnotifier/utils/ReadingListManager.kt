@@ -1,61 +1,67 @@
 package com.example.newsnotifier
 
-import androidx.room.*
-import kotlinx.coroutines.flow.Flow
+import android.content.Context
+import android.content.SharedPreferences
+import com.example.newsnotifier.data.NotificationItem
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
-// Data class for reading list items
-@Entity(tableName = "reading_list")
-data class ReadingListItem(
-    @PrimaryKey val id: Int,
-    val title: String,
-    val content: String,
-    val timestamp: Long = System.currentTimeMillis(),
-    val url: String? = null
-)
+class ReadingListManager(private val context: Context) {
 
-// DAO for reading list operations
-@Dao
-interface ReadingListDao {
-    @Query("SELECT * FROM reading_list ORDER BY timestamp DESC")
-    fun getAllReadingListItems(): Flow<List<ReadingListItem>>
+    private val prefs: SharedPreferences = context.getSharedPreferences("reading_list", Context.MODE_PRIVATE)
+    private val gson = Gson()
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertReadingListItem(item: ReadingListItem)
+    private val _readingListFlow = MutableStateFlow<List<NotificationItem>>(loadReadingList())
+    val readingListFlow: StateFlow<List<NotificationItem>> = _readingListFlow.asStateFlow()
 
-    @Delete
-    suspend fun deleteReadingListItem(item: ReadingListItem)
-
-    @Query("DELETE FROM reading_list WHERE id = :id")
-    suspend fun deleteById(id: Int)
-
-    @Query("SELECT * FROM reading_list WHERE id = :id")
-    suspend fun getById(id: Int): ReadingListItem?
-}
-
-// Manager class for reading list operations
-class ReadingListManager(private val dao: ReadingListDao) {
-
-    val readingListFlow: Flow<List<ReadingListItem>> = dao.getAllReadingListItems()
-
-    suspend fun addToReadingList(notificationItem: NotificationItem) {
-        val readingListItem = ReadingListItem(
-            id = notificationItem.id,
-            title = notificationItem.title,
-            content = notificationItem.content,
-            url = notificationItem.url
-        )
-        dao.insertReadingListItem(readingListItem)
+    fun addToReadingList(notification: NotificationItem) {
+        val currentList = _readingListFlow.value.toMutableList()
+        if (!currentList.any { it.id == notification.id }) {
+            currentList.add(notification)
+            _readingListFlow.value = currentList
+            saveReadingList(currentList)
+        }
     }
 
-    suspend fun removeFromReadingList(id: Int) {
-        dao.deleteById(id)
+    fun removeFromReadingList(notificationId: String) {
+        val currentList = _readingListFlow.value.toMutableList()
+        currentList.removeAll { it.id == notificationId }
+        _readingListFlow.value = currentList
+        saveReadingList(currentList)
     }
 
-    suspend fun removeFromReadingList(item: ReadingListItem) {
-        dao.deleteReadingListItem(item)
+    fun clearReadingList() {
+        _readingListFlow.value = emptyList()
+        saveReadingList(emptyList())
     }
 
-    suspend fun getReadingListItem(id: Int): ReadingListItem? {
-        return dao.getById(id)
+    fun getReadingList(): List<NotificationItem> {
+        return _readingListFlow.value
+    }
+
+    fun isInReadingList(notificationId: String): Boolean {
+        return _readingListFlow.value.any { it.id == notificationId }
+    }
+
+    private fun saveReadingList(items: List<NotificationItem>) {
+        val json = gson.toJson(items)
+        prefs.edit().putString(KEY_READING_LIST, json).apply()
+    }
+
+    private fun loadReadingList(): List<NotificationItem> {
+        val json = prefs.getString(KEY_READING_LIST, null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<NotificationItem>>() {}.type
+            gson.fromJson(json, type) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    companion object {
+        private const val KEY_READING_LIST = "reading_list_items"
     }
 }

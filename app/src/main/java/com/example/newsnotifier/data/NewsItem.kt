@@ -15,3 +15,15 @@ data class NewsItem(
     val sourceName: String,
     var timestamp: Long
 )
+
+// Extension properties for NewsItem to match usage in SubscriptionWorker
+val NewsItem.isBreaking: Boolean
+    get() = title.contains("BREAKING", ignoreCase = true) ||
+            title.contains("URGENT", ignoreCase = true) ||
+            title.contains("ALERT", ignoreCase = true)
+
+val NewsItem.isNew: Boolean
+    get() = System.currentTimeMillis() - timestamp < 3600000 // Within last hour
+
+val NewsItem.text: String
+    get() = title // For compatibility with tweet-like usage

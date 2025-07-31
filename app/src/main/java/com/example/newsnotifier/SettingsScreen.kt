@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,7 +30,7 @@ import android.net.Uri
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    themePreferences: ThemePreferences,
+    themeManager: ThemeManager,
     subscriptionManager: SubscriptionManager,
     onNavigateBack: () -> Unit,
     snackbarHostState: SnackbarHostState
@@ -37,23 +38,13 @@ fun SettingsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var darkModeEnabled by remember { mutableStateOf(false) }
-    var fontScale by remember { mutableStateOf(1.0f) }
+    val themeMode by themeManager.themeModeFlow.collectAsState()
+    val fontSize by themeManager.fontSizeFlow.collectAsState()
     var showFontSizeDialog by remember { mutableStateOf(false) }
     var showNotificationCategoryDialog by remember { mutableStateOf(false) }
 
     val backupRestoreManager = remember { BackupRestoreManager(context) }
 
-    // Collect theme preferences
-    LaunchedEffect(Unit) {
-        themePreferences.darkModeFlow.collect { darkModeEnabled = it }
-    }
-
-    LaunchedEffect(Unit) {
-        themePreferences.fontScaleFlow.collect { fontScale = it }
-    }
-
-    // File picker for backup/restore
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
@@ -74,7 +65,6 @@ fun SettingsScreen(
         uri?.let {
             val importedSubscriptions = backupRestoreManager.importSubscriptions(it)
             if (importedSubscriptions != null) {
-                // Clear existing and add imported
                 subscriptionManager.getSubscriptions().forEach { sub ->
                     subscriptionManager.removeSubscription(sub.id)
                 }
@@ -132,7 +122,6 @@ fun SettingsScreen(
             ) {
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Appearance Settings
                 SettingsSection(title = "Appearance") {
                     SettingsItem(
                         icon = Icons.Default.DarkMode,
@@ -140,11 +129,9 @@ fun SettingsScreen(
                         description = "Use dark theme",
                         trailingContent = {
                             Switch(
-                                checked = darkModeEnabled,
+                                checked = themeMode == ThemeMode.DARK,
                                 onCheckedChange = { enabled ->
-                                    scope.launch {
-                                        themePreferences.setDarkMode(enabled)
-                                    }
+                                    themeManager.setThemeMode(if (enabled) ThemeMode.DARK else ThemeMode.LIGHT)
                                 }
                             )
                         }
@@ -155,12 +142,11 @@ fun SettingsScreen(
                     SettingsItem(
                         icon = Icons.Default.TextFields,
                         title = "Font Size",
-                        description = getFontSizeDescription(fontScale),
+                        description = fontSize.displayName,
                         onClick = { showFontSizeDialog = true }
                     )
                 }
 
-                // Notification Settings
                 SettingsSection(title = "Notifications") {
                     SettingsItem(
                         icon = Icons.Default.Category,
@@ -170,7 +156,6 @@ fun SettingsScreen(
                     )
                 }
 
-                // Data Management
                 SettingsSection(title = "Data Management") {
                     SettingsItem(
                         icon = Icons.Default.Upload,
@@ -198,21 +183,17 @@ fun SettingsScreen(
         }
     }
 
-    // Font Size Dialog
     if (showFontSizeDialog) {
         FontSizeDialog(
-            currentScale = fontScale,
+            currentScale = fontSize,
             onScaleSelected = { scale ->
-                scope.launch {
-                    themePreferences.setFontScale(scale)
-                }
+                themeManager.setFontSize(scale)
                 showFontSizeDialog = false
             },
             onDismiss = { showFontSizeDialog = false }
         )
     }
 
-    // Notification Category Dialog
     if (showNotificationCategoryDialog) {
         NotificationCategoryDialog(
             onDismiss = { showNotificationCategoryDialog = false }
@@ -305,8 +286,8 @@ private fun SettingsItem(
 
 @Composable
 private fun FontSizeDialog(
-    currentScale: Float,
-    onScaleSelected: (Float) -> Unit,
+    currentScale: FontSize,
+    onScaleSelected: (FontSize) -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
@@ -322,12 +303,7 @@ private fun FontSizeDialog(
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf(
-                    0.85f to "Small",
-                    1.0f to "Default",
-                    1.15f to "Large",
-                    1.3f to "Extra Large"
-                ).forEach { (scale, label) ->
+                FontSize.values().forEach { scale ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -335,7 +311,8 @@ private fun FontSizeDialog(
                             .background(
                                 if (currentScale == scale) Primary.copy(alpha = 0.1f) else Color.Transparent
                             )
-                            .padding(12.dp),
+                            .padding(12.dp)
+                            .clickable { onScaleSelected(scale) },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
@@ -344,7 +321,7 @@ private fun FontSizeDialog(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = label,
+                            text = scale.displayName,
                             style = MaterialTheme.typography.bodyLarge
                         )
                     }
@@ -425,14 +402,4 @@ private fun NotificationCategoryDialog(
         },
         shape = RoundedCornerShape(16.dp)
     )
-}
-
-private fun getFontSizeDescription(scale: Float): String {
-    return when (scale) {
-        0.85f -> "Small"
-        1.0f -> "Default"
-        1.15f -> "Large"
-        1.3f -> "Extra Large"
-        else -> "Custom"
-    }
 }

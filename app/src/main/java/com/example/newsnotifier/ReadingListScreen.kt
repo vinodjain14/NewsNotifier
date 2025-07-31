@@ -1,30 +1,32 @@
 package com.example.newsnotifier
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.newsnotifier.data.NotificationItem
-import com.example.newsnotifier.ui.components.*
+import com.example.newsnotifier.ui.components.ElevatedModernCard
+import com.example.newsnotifier.ui.components.StaticGradientBackground
+import com.example.newsnotifier.ui.components.AnimatedGradientButton
+import com.example.newsnotifier.ui.components.AnimatedOutlinedButton
 import com.example.newsnotifier.ui.theme.*
-import com.example.newsnotifier.utils.ReadingListManager
-import com.example.newsnotifier.utils.SharingUtil
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import com.example.newsnotifier.ui.components.GradientDirection
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,19 +35,11 @@ fun ReadingListScreen(
     onNavigateBack: () -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
-    val context = LocalContext.current
-    val savedArticles by readingListManager.readingListFlow.collectAsState()
     val scope = rememberCoroutineScope()
-    var selectedItems by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var isSelectionMode by remember { mutableStateOf(false) }
+    val readingList by readingListManager.readingListFlow.collectAsState(initial = emptyList())
 
     BackHandler {
-        if (isSelectionMode) {
-            isSelectionMode = false
-            selectedItems = emptySet()
-        } else {
-            onNavigateBack()
-        }
+        onNavigateBack()
     }
 
     StaticGradientBackground(
@@ -59,48 +53,14 @@ fun ReadingListScreen(
                 TopAppBar(
                     title = {
                         Text(
-                            if (isSelectionMode) "${selectedItems.size} Selected" else "Reading List",
+                            "Reading List",
                             fontWeight = FontWeight.Bold,
                             fontSize = 22.sp
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = {
-                            if (isSelectionMode) {
-                                isSelectionMode = false
-                                selectedItems = emptySet()
-                            } else {
-                                onNavigateBack()
-                            }
-                        }) {
+                        IconButton(onClick = onNavigateBack) {
                             Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                        }
-                    },
-                    actions = {
-                        if (isSelectionMode && selectedItems.isNotEmpty()) {
-                            IconButton(onClick = {
-                                val itemsToShare = savedArticles.filter { it.id in selectedItems }
-                                SharingUtil.shareMultipleArticles(context, itemsToShare)
-                            }) {
-                                Icon(Icons.Filled.Share, contentDescription = "Share Selected")
-                            }
-
-                            IconButton(onClick = {
-                                selectedItems.forEach { id ->
-                                    readingListManager.removeFromReadingList(id)
-                                }
-                                isSelectionMode = false
-                                selectedItems = emptySet()
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("${selectedItems.size} items removed")
-                                }
-                            }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Delete Selected")
-                            }
-                        } else if (!isSelectionMode && savedArticles.isNotEmpty()) {
-                            IconButton(onClick = { isSelectionMode = true }) {
-                                Icon(Icons.Filled.CheckCircle, contentDescription = "Select Items")
-                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -110,39 +70,100 @@ fun ReadingListScreen(
                 )
             }
         ) { paddingValues ->
-            if (savedArticles.isEmpty()) {
-                EmptyReadingListCard()
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .padding(paddingValues)
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(vertical = 16.dp)
-                ) {
-                    items(savedArticles, key = { it.id }) { article ->
-                        SavedArticleCard(
-                            article = article,
-                            isSelected = article.id in selectedItems,
-                            isSelectionMode = isSelectionMode,
-                            onToggleSelection = {
-                                selectedItems = if (article.id in selectedItems) {
-                                    selectedItems - article.id
-                                } else {
-                                    selectedItems + article.id
-                                }
-                            },
+            LazyColumn(
+                modifier = Modifier
+                    .padding(paddingValues)
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(vertical = 16.dp)
+            ) {
+                if (readingList.isEmpty()) {
+                    item {
+                        ElevatedModernCard(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Text(
+                                    text = "Your Reading List is Empty",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Text(
+                                    text = "Save notifications to read them later",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    item {
+                        ElevatedModernCard(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Reading List",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Text(
+                                    text = "${readingList.size} saved item${if (readingList.size != 1) "s" else ""}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    items(readingList) { item ->
+                        ReadingListItemCard(
+                            item = item,
                             onRemove = {
-                                readingListManager.removeFromReadingList(article.id)
+                                readingListManager.removeFromReadingList(item.id)
                                 scope.launch {
                                     snackbarHostState.showSnackbar("Removed from reading list")
                                 }
-                            },
-                            onShare = {
-                                SharingUtil.shareArticle(context, article)
                             }
                         )
+                    }
+
+                    item {
+                        ElevatedModernCard(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                AnimatedGradientButton(
+                                    text = "Clear Reading List",
+                                    onClick = {
+                                        readingListManager.clearReadingList()
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Reading list cleared!")
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    icon = Icons.Default.Delete,
+                                    gradientColors = listOf(Error, Error.copy(alpha = 0.8f))
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -151,128 +172,68 @@ fun ReadingListScreen(
 }
 
 @Composable
-private fun EmptyReadingListCard() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        ElevatedModernCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 32.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Icon(
-                    Icons.Default.BookmarkBorder,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-
-                Text(
-                    text = "No Saved Articles",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
-
-                Text(
-                    text = "Save articles to read them later, even offline",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SavedArticleCard(
-    article: NotificationItem,
-    isSelected: Boolean,
-    isSelectionMode: Boolean,
-    onToggleSelection: () -> Unit,
-    onRemove: () -> Unit,
-    onShare: () -> Unit
+private fun ReadingListItemCard(
+    item: com.example.newsnotifier.data.NotificationItem,
+    onRemove: () -> Unit
 ) {
     ElevatedModernCard(
-        onClick = if (isSelectionMode) onToggleSelection else null,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top
-        ) {
-            if (isSelectionMode) {
-                Checkbox(
-                    checked = isSelected,
-                    onCheckedChange = { onToggleSelection() },
-                    modifier = Modifier.padding(end = 12.dp)
-                )
-            }
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = article.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                Text(
-                    text = article.sourceName,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                if (article.message.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(8.dp))
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = article.message,
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 2
+                        text = item.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
                     )
-                }
 
-                if (!isSelectionMode) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        AssistChip(
-                            onClick = onShare,
-                            label = { Text("Share") },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Share,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        )
+                    Text(
+                        text = item.sourceName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
-                        AssistChip(
-                            onClick = onRemove,
-                            label = { Text("Remove") },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
+                    Text(
+                        text = formatTimestamp(item.timestamp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+
+                    if (item.message.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = item.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                         )
                     }
                 }
+
+                IconButton(onClick = onRemove) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Remove from reading list",
+                        tint = Error
+                    )
+                }
             }
         }
+    }
+}
+
+private fun formatTimestamp(timestamp: Long): String {
+    val dateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneId.systemDefault())
+    val today = LocalDateTime.now(ZoneId.systemDefault()).toLocalDate()
+    val yesterday = today.minusDays(1)
+
+    return when (dateTime.toLocalDate()) {
+        today -> dateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
+        yesterday -> "Yesterday"
+        else -> dateTime.format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))
     }
 }

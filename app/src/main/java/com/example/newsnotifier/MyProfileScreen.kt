@@ -2,18 +2,15 @@ package com.example.newsnotifier
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -35,12 +32,8 @@ fun MyProfileScreen(
     onNavigateToBackupRestore: () -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
-    val loggedInUser by authManager.loggedInUserFlow.collectAsState(initial = null)
     val scope = rememberCoroutineScope()
-
-    var notificationsEnabled by remember { mutableStateOf(true) }
-    var darkModeEnabled by remember { mutableStateOf(false) }
-    var readingTime by remember { mutableStateOf("Daily: 9:00 AM - 6:00 PM") }
+    val currentUser by authManager.loggedInUserFlow.collectAsState(initial = null)
 
     BackHandler {
         onNavigateBack()
@@ -74,348 +67,174 @@ fun MyProfileScreen(
                 )
             }
         ) { paddingValues ->
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .padding(paddingValues)
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(vertical = 16.dp)
             ) {
-                Spacer(modifier = Modifier.height(8.dp))
+                item {
+                    ElevatedModernCard(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .background(
+                                        color = Primary.copy(alpha = 0.1f),
+                                        shape = androidx.compose.foundation.shape.CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = "Profile",
+                                    modifier = Modifier.size(40.dp),
+                                    tint = Primary
+                                )
+                            }
 
-                // Profile Header
-                ProfileHeaderCard(
-                    user = loggedInUser,
-                    onNavigateToSelection = onNavigateToSelection
-                )
+                            Text(
+                                text = currentUser?.displayName ?: "Guest User",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold
+                            )
 
-                // Stats Section
-                StatsCard()
+                            currentUser?.email?.let { email ->
+                                Text(
+                                    text = email,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
 
-                // Preferences Section
-                PreferencesCard(
-                    notificationsEnabled = notificationsEnabled,
-                    onNotificationsToggle = { notificationsEnabled = it },
-                    darkModeEnabled = darkModeEnabled,
-                    onDarkModeToggle = { darkModeEnabled = it },
-                    readingTime = readingTime,
-                    onReadingTimeClick = {
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Reading Time settings (Not implemented)")
+                            Text(
+                                text = if (currentUser != null) "Signed in with Google" else "Not signed in",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (currentUser != null) Success else Warning
+                            )
                         }
                     }
-                )
+                }
 
-                // Settings Section
-                SettingsCard(
-                    onAccessibilityClick = onNavigateToAccessibility,
-                    onBackupRestoreClick = onNavigateToBackupRestore,
-                    onAnalyticsClick = {
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Reading Analytics (Not implemented)")
-                        }
-                    },
-                    onExportClick = {
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Export Data (Not implemented)")
-                        }
-                    },
-                    onFeedbackClick = {
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Send Feedback (Not implemented)")
+                item {
+                    ElevatedModernCard(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "Settings",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            ProfileMenuItem(
+                                icon = Icons.Default.Accessibility,
+                                title = "Accessibility",
+                                subtitle = "Font size, theme preferences",
+                                onClick = onNavigateToAccessibility
+                            )
+
+                            Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+
+                            ProfileMenuItem(
+                                icon = Icons.Default.Backup,
+                                title = "Backup & Restore",
+                                subtitle = "Save and restore your data",
+                                onClick = onNavigateToBackupRestore
+                            )
+
+                            Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+
+                            ProfileMenuItem(
+                                icon = Icons.Default.Notifications,
+                                title = "Notification Settings",
+                                subtitle = "Manage notification preferences",
+                                onClick = {
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Notification settings coming soon!")
+                                    }
+                                }
+                            )
                         }
                     }
-                )
+                }
 
-                // Sign Out Section
-                SignOutCard(
-                    onSignOut = {
-                        authManager.logoutUser()
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Logged out successfully.")
+                item {
+                    ElevatedModernCard(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Text(
+                                text = "Account",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            if (currentUser != null) {
+                                AnimatedGradientButton(
+                                    text = "Sign Out",
+                                    onClick = {
+                                        authManager.logoutUser()
+                                        onLogout()
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Signed out successfully")
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    icon = Icons.Default.Logout,
+                                    gradientColors = listOf(Error, Error.copy(alpha = 0.8f))
+                                )
+                            } else {
+                                AnimatedGradientButton(
+                                    text = "Sign In",
+                                    onClick = {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Please use the welcome screen to sign in")
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    icon = Icons.Default.Login
+                                )
+                            }
                         }
-                        onLogout()
                     }
-                )
+                }
 
-                Spacer(modifier = Modifier.height(20.dp))
-            }
-        }
-    }
-}
+                item {
+                    ElevatedModernCard(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "About",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
 
-@Composable
-private fun ProfileHeaderCard(
-    user: com.google.firebase.auth.FirebaseUser?,
-    onNavigateToSelection: () -> Unit
-) {
-    ElevatedModernCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Profile Picture
-            Box(
-                modifier = Modifier
-                    .size(100.dp)
-                    .clip(CircleShape)
-                    .background(
-                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
-                            colors = listOf(Primary, PrimaryDark)
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Filled.Person,
-                    contentDescription = "Profile Picture",
-                    modifier = Modifier.size(60.dp),
-                    tint = Color.White
-                )
-            }
-
-            // User Info
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = user?.displayName ?: "Test Device",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = user?.email ?: "tdevice321@gmail.com",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            // Quick Action Button
-            AnimatedGradientButton(
-                text = "Manage Feeds",
-                onClick = onNavigateToSelection,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
-}
-
-@Composable
-private fun StatsCard() {
-    ElevatedModernCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = "Your Activity",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround
-            ) {
-                StatItem("127", "Articles Read", Success)
-                StatItem("5", "Active Sources", Primary)
-                StatItem("23", "Days Active", Info)
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatItem(value: String, label: String, color: Color) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .background(
-                color = color.copy(alpha = 0.1f),
-                shape = RoundedCornerShape(12.dp)
-            )
-            .padding(16.dp)
-    ) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = color
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun PreferencesCard(
-    notificationsEnabled: Boolean,
-    onNotificationsToggle: (Boolean) -> Unit,
-    darkModeEnabled: Boolean,
-    onDarkModeToggle: (Boolean) -> Unit,
-    readingTime: String,
-    onReadingTimeClick: () -> Unit
-) {
-    ElevatedModernCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = "Preferences",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            Column(
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                ProfileMenuItem(
-                    icon = Icons.Filled.Notifications,
-                    title = "Push Notifications",
-                    description = "Get notified about breaking news",
-                    trailingContent = {
-                        Switch(
-                            checked = notificationsEnabled,
-                            onCheckedChange = onNotificationsToggle
-                        )
+                            ProfileInfoRow("Version", "1.0.0")
+                            ProfileInfoRow("Build", "Debug")
+                            ProfileInfoRow("Developer", "NOTT Team")
+                        }
                     }
-                )
-
-                Divider(modifier = Modifier.padding(horizontal = 8.dp))
-
-                ProfileMenuItem(
-                    icon = Icons.Filled.DarkMode,
-                    title = "Dark Mode",
-                    description = "Easier on your eyes",
-                    trailingContent = {
-                        Switch(
-                            checked = darkModeEnabled,
-                            onCheckedChange = onDarkModeToggle
-                        )
-                    }
-                )
-
-                Divider(modifier = Modifier.padding(horizontal = 8.dp))
-
-                ProfileMenuItem(
-                    icon = Icons.Filled.Schedule,
-                    title = "Reading Schedule",
-                    description = readingTime,
-                    onClick = onReadingTimeClick
-                )
+                }
             }
-        }
-    }
-}
-
-@Composable
-private fun SettingsCard(
-    onAccessibilityClick: () -> Unit,
-    onBackupRestoreClick: () -> Unit,
-    onAnalyticsClick: () -> Unit,
-    onExportClick: () -> Unit,
-    onFeedbackClick: () -> Unit
-) {
-    ElevatedModernCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = "Settings",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            Column(
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                ProfileMenuItem(
-                    icon = Icons.Filled.Accessibility,
-                    title = "Accessibility & Display",
-                    description = "Theme, font size, and accessibility options",
-                    onClick = onAccessibilityClick
-                )
-
-                Divider(modifier = Modifier.padding(horizontal = 8.dp))
-
-                ProfileMenuItem(
-                    icon = Icons.Filled.Backup,
-                    title = "Backup & Restore",
-                    description = "Export and import your data",
-                    onClick = onBackupRestoreClick
-                )
-
-                Divider(modifier = Modifier.padding(horizontal = 8.dp))
-
-                ProfileMenuItem(
-                    icon = Icons.Filled.QueryStats,
-                    title = "Reading Analytics",
-                    description = "View your reading habits and insights",
-                    onClick = onAnalyticsClick
-                )
-
-                Divider(modifier = Modifier.padding(horizontal = 8.dp))
-
-                ProfileMenuItem(
-                    icon = Icons.Filled.Share,
-                    title = "Export Data",
-                    description = "Download your reading history",
-                    onClick = onExportClick
-                )
-
-                Divider(modifier = Modifier.padding(horizontal = 8.dp))
-
-                ProfileMenuItem(
-                    icon = Icons.Filled.MailOutline,
-                    title = "Send Feedback",
-                    description = "Help us improve the app",
-                    onClick = onFeedbackClick
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SignOutCard(
-    onSignOut: () -> Unit
-) {
-    ElevatedModernCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = "Account Management",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            ProfileMenuItem(
-                icon = Icons.Filled.ExitToApp,
-                title = "Sign Out",
-                description = "Sign out of your account",
-                tint = Error,
-                onClick = onSignOut
-            )
         }
     }
 }
@@ -424,59 +243,61 @@ private fun SignOutCard(
 private fun ProfileMenuItem(
     icon: ImageVector,
     title: String,
-    description: String,
-    tint: Color = Primary,
-    onClick: (() -> Unit)? = null,
-    trailingContent: @Composable (() -> Unit)? = null
+    subtitle: String,
+    onClick: () -> Unit
 ) {
-    ModernCard(
-        onClick = onClick,
-        backgroundColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-        borderColor = Color.Transparent,
-        modifier = Modifier.fillMaxWidth()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(tint.copy(alpha = 0.1f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = tint,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+        Icon(
+            imageVector = icon,
+            contentDescription = title,
+            modifier = Modifier.size(24.dp),
+            tint = Primary
+        )
 
-                Column {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            trailingContent?.invoke()
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
+
+        Icon(
+            imageVector = Icons.Default.ChevronRight,
+            contentDescription = "Go to $title",
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun ProfileInfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium
+        )
     }
 }

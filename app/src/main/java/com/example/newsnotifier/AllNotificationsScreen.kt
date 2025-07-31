@@ -14,9 +14,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,7 +37,6 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import androidx.compose.material.icons.outlined.BookmarkBorder
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,16 +84,7 @@ fun AllNotificationsScreen(
         onNavigateBack()
     }
 
-    IconButton(onClick = onNavigateToReadingList) {
-        Icon(Icons.Outlined.BookmarkBorder, contentDescription = "Reading List")
-    }
-
-    Icon(
-        imageVector = Icons.Outlined.BookmarkBorder, // Correct usage
-        contentDescription = "Bookmark"
-    )
-
-    // FIXED: Simplified LaunchedEffect for focusing on notification
+    // Focus on notification effect
     LaunchedEffect(notificationIdToFocus) {
         if (notificationIdToFocus != null) {
             showActionButtonsForNotificationId = notificationIdToFocus
@@ -131,6 +121,9 @@ fun AllNotificationsScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = onNavigateToReadingList) {
+                            Icon(Icons.Outlined.BookmarkBorder, contentDescription = "Reading List")
+                        }
                         IconButton(onClick = { showFilterDialog = true }) {
                             Icon(Icons.Filled.FilterList, contentDescription = "Filter")
                         }

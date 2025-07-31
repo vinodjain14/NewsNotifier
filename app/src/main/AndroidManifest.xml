@@ -29,24 +29,5 @@
             </intent-filter>
         </activity>
 
-        <!-- WorkManager components -->
-        <!-- The InitializationProvider is sufficient for WorkManager to auto-initialize.
-             Explicitly declaring the WorkManager services and receivers is usually
-             not necessary and can lead to manifest merger conflicts.
-             tools:node="merge" is kept for the provider to ensure it merges correctly
-             if other libraries also declare startup components. -->
-        <provider
-            android:name="androidx.startup.InitializationProvider"
-            android:authorities="${applicationId}.androidx-startup"
-            android:exported="false"
-            tools:node="merge">
-            <meta-data
-                android:name="androidx.work.WorkManagerInitializer"
-                android:value="androidx.startup" />
-        </provider>
-
-        <!-- REMOVED: Explicit declarations for WorkManager's SystemJobService and SystemAlarmService.
-             These are automatically added by the WorkManager library. -->
-
     </application>
 </manifest>

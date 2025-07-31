@@ -1,34 +1,24 @@
 package com.example.newsnotifier
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.newsnotifier.data.AppDefaults
-import com.example.newsnotifier.data.Subscription
 import com.example.newsnotifier.ui.components.*
 import com.example.newsnotifier.ui.theme.*
 import com.example.newsnotifier.utils.SubscriptionManager
 import kotlinx.coroutines.launch
-import com.example.newsnotifier.data.SubscriptionType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,25 +27,15 @@ fun ManageSubscriptionsScreen(
     onSubscriptionsChanged: () -> Unit,
     onNavigateToSelection: () -> Unit,
     onNavigateToAllNotifications: () -> Unit,
+    onNavigateToReadingList: () -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
-    val subscriptions = remember { mutableStateListOf<Subscription>() }
     val scope = rememberCoroutineScope()
-
-    LaunchedEffect(Unit) {
-        subscriptions.clear()
-        subscriptions.addAll(subscriptionManager.getSubscriptions())
-    }
+    val subscriptions by subscriptionManager.subscriptionsFlow.collectAsState()
 
     BackHandler {
         onNavigateToSelection()
     }
-
-    AnimatedOutlinedButton(
-        text = "Reading List",
-        onClick = onNavigateToReadingList,
-        icon = Icons.Default.BookmarkBorder
-    )
 
     StaticGradientBackground(
         colors = listOf(BackgroundLight, Color.White),
@@ -68,7 +48,7 @@ fun ManageSubscriptionsScreen(
                 TopAppBar(
                     title = {
                         Text(
-                            "My Subscriptions",
+                            "Manage Subscriptions",
                             fontWeight = FontWeight.Bold,
                             fontSize = 22.sp
                         )
@@ -79,12 +59,11 @@ fun ManageSubscriptionsScreen(
                         }
                     },
                     actions = {
-                        IconButton(onClick = {
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Refreshing subscriptions...")
-                            }
-                        }) {
-                            Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+                        IconButton(onClick = onNavigateToReadingList) {
+                            Icon(Icons.Outlined.BookmarkBorder, contentDescription = "Reading List")
+                        }
+                        IconButton(onClick = onNavigateToAllNotifications) {
+                            Icon(Icons.Default.Notifications, contentDescription = "All Notifications")
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -99,319 +78,133 @@ fun ManageSubscriptionsScreen(
                     .padding(paddingValues)
                     .fillMaxSize()
                     .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(vertical = 16.dp)
             ) {
                 item {
-                    // Subscriptions Summary
-                    SubscriptionsSummaryCard(
-                        totalCount = subscriptions.size,
-                        activeCount = subscriptions.size // Assuming all are active
-                    )
+                    ElevatedModernCard(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Text(
+                                text = "Subscription Overview",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            Text(
+                                text = "You have ${subscriptions.size} active subscription${if (subscriptions.size != 1) "s" else ""}",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
 
                 if (subscriptions.isEmpty()) {
                     item {
-                        EmptySubscriptionsCard(
-                            onNavigateToSelection = onNavigateToSelection
-                        )
+                        ElevatedModernCard(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(32.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Text(
+                                    text = "No Subscriptions",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Text(
+                                    text = "Add some news sources to get started with notifications.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                                AnimatedGradientButton(
+                                    text = "Add Subscriptions",
+                                    onClick = {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Subscription management coming soon!")
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
                     }
                 } else {
-                    item {
-                        // Quick Actions
-                        QuickActionsCard(
-                            onNavigateToSelection = onNavigateToSelection,
-                            onNavigateToAllNotifications = onNavigateToAllNotifications
-                        )
-                    }
+                    items(subscriptions) { subscription ->
+                        ElevatedModernCard(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = subscription.name,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
 
-                    // Group subscriptions by type
-                    val groupedSubscriptions = subscriptions.groupBy { it.type }
+                                        Text(
+                                            text = subscription.type.name.replace("_", " ").lowercase()
+                                                .replaceFirstChar { it.uppercase() },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
 
-                    groupedSubscriptions.forEach { (type, subs) ->
-                        item {
-                            Text(
-                                text = when (type) {
-                                    SubscriptionType.RSS_FEED -> "📰 News Sources"
-                                    SubscriptionType.TWITTER -> "🐦 X Personalities"
-                                },
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-                            )
-                        }
-
-                        items(subs.sortedBy { it.name }, key = { it.id }) { subscription ->
-                            ModernSubscriptionCard(
-                                subscription = subscription,
-                                canDelete = subscriptions.size > 2,
-                                onDelete = { subToRemove ->
-                                    subscriptionManager.removeSubscription(subToRemove.id)
-                                    subscriptions.remove(subToRemove)
-                                    onSubscriptionsChanged()
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Removed ${subToRemove.name}")
+                                        Text(
+                                            text = subscription.sourceUrl,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        )
                                     }
                                 }
-                            )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    AnimatedOutlinedButton(
+                                        text = "Remove",
+                                        onClick = {
+                                            subscriptionManager.removeSubscription(subscription.id)
+                                            onSubscriptionsChanged()
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar("Removed ${subscription.name}")
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        height = 40.dp,
+                                        borderColor = Error,
+                                        textColor = Error
+                                    )
+
+                                    AnimatedOutlinedButton(
+                                        text = "Settings",
+                                        onClick = {
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar("Settings for ${subscription.name}")
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        height = 40.dp
+                                    )
+                                }
+                            }
                         }
                     }
-
-                    item {
-                        Spacer(modifier = Modifier.height(20.dp))
-                    }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SubscriptionsSummaryCard(
-    totalCount: Int,
-    activeCount: Int
-) {
-    ElevatedModernCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            SummaryItem(
-                title = "Total Sources",
-                value = totalCount.toString(),
-                color = Primary
-            )
-
-            Divider(
-                modifier = Modifier
-                    .height(40.dp)
-                    .width(1.dp),
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-            )
-
-            SummaryItem(
-                title = "Active",
-                value = activeCount.toString(),
-                color = Success
-            )
-
-            Divider(
-                modifier = Modifier
-                    .height(40.dp)
-                    .width(1.dp),
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-            )
-
-            SummaryItem(
-                title = "This Week",
-                value = "127", // Mock data
-                color = Info
-            )
-        }
-    }
-}
-
-@Composable
-private fun SummaryItem(
-    title: String,
-    value: String,
-    color: Color
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = color
-        )
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun QuickActionsCard(
-    onNavigateToSelection: () -> Unit,
-    onNavigateToAllNotifications: () -> Unit
-) {
-    ElevatedModernCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = "Quick Actions",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                AnimatedOutlinedButton(
-                    text = "Edit Sources",
-                    onClick = onNavigateToSelection,
-                    modifier = Modifier.weight(1f),
-                    icon = Icons.Default.Edit
-                )
-
-                AnimatedOutlinedButton(
-                    text = "All Notifications",
-                    onClick = onNavigateToAllNotifications,
-                    modifier = Modifier.weight(1f),
-                    icon = Icons.Default.Notifications
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptySubscriptionsCard(
-    onNavigateToSelection: () -> Unit
-) {
-    ElevatedModernCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = androidx.compose.foundation.shape.CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Notifications,
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Text(
-                text = "No Subscriptions Yet",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
-
-            Text(
-                text = "Add some news sources and personalities to start receiving personalized updates",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-
-            AnimatedGradientButton(
-                text = "Add Sources",
-                onClick = onNavigateToSelection,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
-}
-
-@Composable
-private fun ModernSubscriptionCard(
-    subscription: Subscription,
-    canDelete: Boolean,
-    onDelete: (Subscription) -> Unit
-) {
-    ElevatedModernCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Source Icon
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(
-                            color = when (subscription.type.name) {
-                                "RSS_FEED" -> Primary.copy(alpha = 0.1f)
-                                "TWITTER" -> Info.copy(alpha = 0.1f)
-                                else -> MaterialTheme.colorScheme.surfaceVariant
-                            }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = AppDefaults.getInitials(subscription.name),
-                        color = when (subscription.type.name) {
-                            "RSS_FEED" -> Primary
-                            "TWITTER" -> Info
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = subscription.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    Text(
-                        text = subscription.type.name.replace("_", " "),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Text(
-                        text = subscription.sourceUrl.take(30) + if (subscription.sourceUrl.length > 30) "..." else "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
-                }
-            }
-
-            // Delete Button
-            IconButton(
-                onClick = { onDelete(subscription) },
-                enabled = canDelete
-            ) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "Delete subscription",
-                    tint = if (canDelete) Error else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                )
             }
         }
     }

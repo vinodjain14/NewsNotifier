@@ -21,20 +21,13 @@ import com.example.newsnotifier.utils.NotificationHelper
 import com.example.newsnotifier.utils.SubscriptionManager
 import com.example.newsnotifier.utils.ThemeManager
 import com.example.newsnotifier.utils.BackupRestoreManager
-import com.example.newsnotifier.workers.SubscriptionWorker
 import com.example.newsnotifier.utils.AuthManager
 import com.example.newsnotifier.utils.DataFetcher
+import com.example.newsnotifier.workers.SubscriptionWorker
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import android.content.Intent
 import androidx.lifecycle.lifecycleScope
-import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.ui.graphics.Color
-import androidx.core.view.WindowCompat
-import androidx.navigation.NavHostController
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
 
 // Enhanced Screen enum with new features
 enum class Screen {
@@ -116,13 +109,9 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            // Enable edge-to-edge display
-            WindowCompat.setDecorFitsSystemWindows(window, false)
-
-            // Use existing NewsNotifierTheme for now
             NewsNotifierTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize().systemBarsPadding(),
+                    modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     // SnackbarHostState for showing messages across screens
@@ -204,6 +193,7 @@ class MainActivity : ComponentActivity() {
                                 onSubscriptionsChanged = updateSubscriptionsAndScheduleWorker,
                                 onNavigateToSelection = { currentScreen = Screen.Selection },
                                 onNavigateToAllNotifications = { currentScreen = Screen.AllNotifications },
+                                onNavigateToReadingList = { currentScreen = Screen.ReadingList },
                                 snackbarHostState = snackbarHostState
                             )
                         }
@@ -222,7 +212,8 @@ class MainActivity : ComponentActivity() {
                             AllNotificationsScreen(
                                 onNavigateBack = { currentScreen = Screen.Manage },
                                 snackbarHostState = snackbarHostState,
-                                notificationIdToFocus = initialNotificationId
+                                notificationIdToFocus = initialNotificationId,
+                                onNavigateToReadingList = { currentScreen = Screen.ReadingList }
                             )
                             // Clear initialNotificationId after it's consumed
                             DisposableEffect(Unit) {
@@ -233,6 +224,7 @@ class MainActivity : ComponentActivity() {
                         }
                         Screen.ReadingList -> {
                             ReadingListScreen(
+                                readingListManager = readingListManager,
                                 onNavigateBack = {
                                     currentScreen = if (initialNotificationId != null) {
                                         Screen.AllNotifications
@@ -289,50 +281,6 @@ class MainActivity : ComponentActivity() {
             )
         } else {
             workManager.cancelUniqueWork(workName)
-        }
-    }
-
-    // In your NavHost setup (usually in MainActivity or a Navigation file):
-    @Composable
-    fun NewsNotifierNavigation(
-        navController: NavHostController,
-        // ... other parameters
-    ) {
-        NavHost(
-            navController = navController,
-            startDestination = "notifications"
-        ) {
-            composable("notifications") {
-                AllNotificationsScreen(
-                    onNavigateToReadingList = {
-                        navController.navigate("reading_list")
-                    },
-                    // ... other parameters
-                )
-            }
-
-            composable("subscriptions") {
-                ManageSubscriptionsScreen(
-                    onNavigateToReadingList = {
-                        navController.navigate("reading_list")
-                    },
-                    // ... other parameters
-                )
-            }
-
-            composable("reading_list") {
-                ReadingListScreen(
-                    onNavigateBack = {
-                        navController.popBackStack()
-                    }
-                )
-            }
-
-            composable("settings") {
-                SettingsScreen(
-                    // ... parameters
-                )
-            }
         }
     }
 }
