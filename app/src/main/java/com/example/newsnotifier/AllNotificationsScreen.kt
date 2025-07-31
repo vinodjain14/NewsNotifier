@@ -37,13 +37,15 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import androidx.compose.material.icons.outlined.BookmarkBorder
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AllNotificationsScreen(
     onNavigateBack: () -> Unit,
     snackbarHostState: SnackbarHostState,
-    notificationIdToFocus: String? = null
+    notificationIdToFocus: String? = null,
+    onNavigateToReadingList: () -> Unit
 ) {
     val allNotifications by NotificationHelper.notificationsFlow.collectAsState()
     val scope = rememberCoroutineScope()
@@ -82,6 +84,15 @@ fun AllNotificationsScreen(
     BackHandler {
         onNavigateBack()
     }
+
+    IconButton(onClick = onNavigateToReadingList) {
+        Icon(Icons.Outlined.BookmarkBorder, contentDescription = "Reading List")
+    }
+
+    Icon(
+        imageVector = Icons.Outlined.BookmarkBorder, // Correct usage
+        contentDescription = "Bookmark"
+    )
 
     // FIXED: Simplified LaunchedEffect for focusing on notification
     LaunchedEffect(notificationIdToFocus) {

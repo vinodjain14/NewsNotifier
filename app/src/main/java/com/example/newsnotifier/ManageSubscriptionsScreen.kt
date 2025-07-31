@@ -28,6 +28,7 @@ import com.example.newsnotifier.ui.components.*
 import com.example.newsnotifier.ui.theme.*
 import com.example.newsnotifier.utils.SubscriptionManager
 import kotlinx.coroutines.launch
+import com.example.newsnotifier.data.SubscriptionType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,6 +50,12 @@ fun ManageSubscriptionsScreen(
     BackHandler {
         onNavigateToSelection()
     }
+
+    AnimatedOutlinedButton(
+        text = "Reading List",
+        onClick = onNavigateToReadingList,
+        icon = Icons.Default.BookmarkBorder
+    )
 
     StaticGradientBackground(
         colors = listOf(BackgroundLight, Color.White),
@@ -118,19 +125,37 @@ fun ManageSubscriptionsScreen(
                         )
                     }
 
-                    items(subscriptions, key = { it.id }) { subscription ->
-                        ModernSubscriptionCard(
-                            subscription = subscription,
-                            canDelete = subscriptions.size > 2,
-                            onDelete = { subToRemove ->
-                                subscriptionManager.removeSubscription(subToRemove.id)
-                                subscriptions.remove(subToRemove)
-                                onSubscriptionsChanged()
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Removed ${subToRemove.name}")
+                    // Group subscriptions by type
+                    val groupedSubscriptions = subscriptions.groupBy { it.type }
+
+                    groupedSubscriptions.forEach { (type, subs) ->
+                        item {
+                            Text(
+                                text = when (type) {
+                                    SubscriptionType.RSS_FEED -> "📰 News Sources"
+                                    SubscriptionType.TWITTER -> "🐦 X Personalities"
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                            )
+                        }
+
+                        items(subs.sortedBy { it.name }, key = { it.id }) { subscription ->
+                            ModernSubscriptionCard(
+                                subscription = subscription,
+                                canDelete = subscriptions.size > 2,
+                                onDelete = { subToRemove ->
+                                    subscriptionManager.removeSubscription(subToRemove.id)
+                                    subscriptions.remove(subToRemove)
+                                    onSubscriptionsChanged()
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Removed ${subToRemove.name}")
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
 
                     item {

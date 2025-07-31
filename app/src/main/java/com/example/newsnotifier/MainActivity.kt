@@ -19,6 +19,8 @@ import androidx.work.WorkManager
 import com.example.newsnotifier.ui.theme.NewsNotifierTheme
 import com.example.newsnotifier.utils.NotificationHelper
 import com.example.newsnotifier.utils.SubscriptionManager
+import com.example.newsnotifier.utils.ThemeManager
+import com.example.newsnotifier.utils.BackupRestoreManager
 import com.example.newsnotifier.workers.SubscriptionWorker
 import com.example.newsnotifier.utils.AuthManager
 import com.example.newsnotifier.utils.DataFetcher
@@ -29,8 +31,12 @@ import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.ui.graphics.Color
 import androidx.core.view.WindowCompat
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 
-// Define an enum to represent the different screens in our app
+// Enhanced Screen enum with new features
 enum class Screen {
     Welcome,
     ChooseAccount,
@@ -38,6 +44,9 @@ enum class Screen {
     Manage,
     MyProfile,
     AllNotifications,
+    ReadingList,
+    AccessibilitySettings,
+    BackupRestore,
     LoggedOut
 }
 
@@ -46,6 +55,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var subscriptionManager: SubscriptionManager
     private lateinit var workManager: WorkManager
     private lateinit var authManager: AuthManager
+    private lateinit var themeManager: ThemeManager
+    private lateinit var backupRestoreManager: BackupRestoreManager
+    private lateinit var readingListManager: ReadingListManager
     private var initialNotificationId: String? = null
 
     // ActivityResultLauncher for Google Sign-In
@@ -54,7 +66,6 @@ class MainActivity : ComponentActivity() {
     ) { result ->
         if (result.resultCode == RESULT_OK) {
             val data: Intent? = result.data
-            // Handle Google Sign-In result
             lifecycleScope.launch {
                 val success = authManager.firebaseAuthWithGoogle(data)
                 if (success) {
@@ -71,24 +82,26 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
-            // Permission granted, can schedule work
             scheduleSubscriptionWorker()
-        } else {
-            // Permission denied
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Initialize managers
         subscriptionManager = SubscriptionManager(this)
         workManager = WorkManager.getInstance(this)
         authManager = AuthManager(this)
+        themeManager = ThemeManager(this)
+        backupRestoreManager = BackupRestoreManager(this)
+        readingListManager = ReadingListManager(this)
 
-        // Initialize NotificationHelper and DataFetcher early
+        // Initialize helpers early
         NotificationHelper.init(this)
         DataFetcher.init(this)
 
-        // Check for notification ID from the intent that launched the activity
+        // Check for notification ID from the intent
         initialNotificationId = intent.getStringExtra(NotificationHelper.NOTIFICATION_ID_EXTRA)
 
         // Request notification permission if needed (Android 13+)
@@ -96,32 +109,31 @@ class MainActivity : ComponentActivity() {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             } else {
-                // Permission already granted, schedule work
                 scheduleSubscriptionWorker()
             }
         } else {
-            // For older Android versions, permission is granted at install time
             scheduleSubscriptionWorker()
         }
 
         setContent {
-            // Enable edge-to-edge display for modern UI
+            // Enable edge-to-edge display
             WindowCompat.setDecorFitsSystemWindows(window, false)
+
+            // Use existing NewsNotifierTheme for now
             NewsNotifierTheme {
-                // Apply system bars padding to avoid content being hidden behind system bars
                 Surface(
                     modifier = Modifier.fillMaxSize().systemBarsPadding(),
-                    color = Color.Transparent
+                    color = MaterialTheme.colorScheme.background
                 ) {
                     // SnackbarHostState for showing messages across screens
                     val snackbarHostState = remember { SnackbarHostState() }
                     val scope = rememberCoroutineScope()
 
-                    // Observe logged-in user state from AuthManager
+                    // Observe logged-in user state
                     val loggedInUser by authManager.loggedInUserFlow.collectAsState(initial = null)
                     val isLoggedIn = loggedInUser != null
 
-                    // Determine initial screen based on intent or login state
+                    // Determine initial screen
                     var currentScreen by remember {
                         mutableStateOf(
                             when {
@@ -132,15 +144,19 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    // Effect to navigate after successful Google Sign-in
+                    // Navigation after successful sign-in
                     LaunchedEffect(loggedInUser) {
                         if (loggedInUser != null && currentScreen == Screen.Welcome) {
                             currentScreen = Screen.Selection
-                            scope.launch { snackbarHostState.showSnackbar("Signed in as ${loggedInUser?.displayName ?: loggedInUser?.email}") }
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    "Signed in as ${loggedInUser?.displayName ?: loggedInUser?.email}"
+                                )
+                            }
                         }
                     }
 
-                    // Callback to update subscriptions and schedule/reschedule the worker
+                    // Callback to update subscriptions and schedule worker
                     val updateSubscriptionsAndScheduleWorker: () -> Unit = {
                         scheduleSubscriptionWorker()
                     }
@@ -196,9 +212,9 @@ class MainActivity : ComponentActivity() {
                                 authManager = authManager,
                                 onNavigateToSelection = { currentScreen = Screen.Selection },
                                 onNavigateBack = { currentScreen = Screen.Selection },
-                                onLogout = {
-                                    currentScreen = Screen.LoggedOut
-                                },
+                                onLogout = { currentScreen = Screen.LoggedOut },
+                                onNavigateToAccessibility = { currentScreen = Screen.AccessibilitySettings },
+                                onNavigateToBackupRestore = { currentScreen = Screen.BackupRestore },
                                 snackbarHostState = snackbarHostState
                             )
                         }
@@ -215,6 +231,32 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
+                        Screen.ReadingList -> {
+                            ReadingListScreen(
+                                onNavigateBack = {
+                                    currentScreen = if (initialNotificationId != null) {
+                                        Screen.AllNotifications
+                                    } else {
+                                        Screen.Manage
+                                    }
+                                },
+                                snackbarHostState = snackbarHostState
+                            )
+                        }
+                        Screen.AccessibilitySettings -> {
+                            AccessibilitySettingsScreen(
+                                themeManager = themeManager,
+                                onNavigateBack = { currentScreen = Screen.MyProfile },
+                                snackbarHostState = snackbarHostState
+                            )
+                        }
+                        Screen.BackupRestore -> {
+                            BackupRestoreScreen(
+                                backupManager = backupRestoreManager,
+                                onNavigateBack = { currentScreen = Screen.MyProfile },
+                                snackbarHostState = snackbarHostState
+                            )
+                        }
                         Screen.LoggedOut -> {
                             LoggedOutScreen(
                                 onNavigateToWelcome = { currentScreen = Screen.Welcome }
@@ -230,29 +272,67 @@ class MainActivity : ComponentActivity() {
      * Schedules the periodic work for checking subscriptions.
      */
     private fun scheduleSubscriptionWorker() {
-        // Define a unique name for your work request
         val workName = "SubscriptionCheckWork"
-
-        // Get the current subscriptions to decide whether to schedule or cancel work
         val subscriptions = subscriptionManager.getSubscriptions()
 
         if (subscriptions.isNotEmpty()) {
-            // Use minimum allowed interval of 15 minutes for PeriodicWorkRequest
             val periodicWorkRequest = PeriodicWorkRequestBuilder<SubscriptionWorker>(
                 15, TimeUnit.MINUTES
             )
                 .addTag(workName)
                 .build()
 
-            // Enqueue the work. ExistingPeriodicWorkPolicy.REPLACE will replace if already scheduled.
             workManager.enqueueUniquePeriodicWork(
                 workName,
                 ExistingPeriodicWorkPolicy.REPLACE,
                 periodicWorkRequest
             )
         } else {
-            // If no subscriptions, cancel the work
             workManager.cancelUniqueWork(workName)
+        }
+    }
+
+    // In your NavHost setup (usually in MainActivity or a Navigation file):
+    @Composable
+    fun NewsNotifierNavigation(
+        navController: NavHostController,
+        // ... other parameters
+    ) {
+        NavHost(
+            navController = navController,
+            startDestination = "notifications"
+        ) {
+            composable("notifications") {
+                AllNotificationsScreen(
+                    onNavigateToReadingList = {
+                        navController.navigate("reading_list")
+                    },
+                    // ... other parameters
+                )
+            }
+
+            composable("subscriptions") {
+                ManageSubscriptionsScreen(
+                    onNavigateToReadingList = {
+                        navController.navigate("reading_list")
+                    },
+                    // ... other parameters
+                )
+            }
+
+            composable("reading_list") {
+                ReadingListScreen(
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+
+            composable("settings") {
+                SettingsScreen(
+                    // ... parameters
+                )
+            }
         }
     }
 }

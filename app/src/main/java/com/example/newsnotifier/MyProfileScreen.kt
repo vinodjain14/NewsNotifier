@@ -8,15 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.ExitToApp
-import androidx.compose.material.icons.filled.MailOutline
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.QueryStats
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,7 +30,9 @@ fun MyProfileScreen(
     authManager: AuthManager,
     onNavigateToSelection: () -> Unit,
     onNavigateBack: () -> Unit,
-    onLogout: () -> Unit, // ADD THIS PARAMETER
+    onLogout: () -> Unit,
+    onNavigateToAccessibility: () -> Unit,
+    onNavigateToBackupRestore: () -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
     val loggedInUser by authManager.loggedInUserFlow.collectAsState(initial = null)
@@ -113,8 +107,10 @@ fun MyProfileScreen(
                     }
                 )
 
-                // Account Section
-                AccountCard(
+                // Settings Section
+                SettingsCard(
+                    onAccessibilityClick = onNavigateToAccessibility,
+                    onBackupRestoreClick = onNavigateToBackupRestore,
                     onAnalyticsClick = {
                         scope.launch {
                             snackbarHostState.showSnackbar("Reading Analytics (Not implemented)")
@@ -132,14 +128,14 @@ fun MyProfileScreen(
                     }
                 )
 
-                // Sign Out Section - FIXED: Use onLogout instead of onNavigateBack
+                // Sign Out Section
                 SignOutCard(
                     onSignOut = {
                         authManager.logoutUser()
                         scope.launch {
                             snackbarHostState.showSnackbar("Logged out successfully.")
                         }
-                        onLogout() // FIXED: Use proper logout navigation
+                        onLogout()
                     }
                 )
 
@@ -326,7 +322,9 @@ private fun PreferencesCard(
 }
 
 @Composable
-private fun AccountCard(
+private fun SettingsCard(
+    onAccessibilityClick: () -> Unit,
+    onBackupRestoreClick: () -> Unit,
     onAnalyticsClick: () -> Unit,
     onExportClick: () -> Unit,
     onFeedbackClick: () -> Unit
@@ -339,7 +337,7 @@ private fun AccountCard(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "Account",
+                text = "Settings",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -347,6 +345,24 @@ private fun AccountCard(
             Column(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                ProfileMenuItem(
+                    icon = Icons.Filled.Accessibility,
+                    title = "Accessibility & Display",
+                    description = "Theme, font size, and accessibility options",
+                    onClick = onAccessibilityClick
+                )
+
+                Divider(modifier = Modifier.padding(horizontal = 8.dp))
+
+                ProfileMenuItem(
+                    icon = Icons.Filled.Backup,
+                    title = "Backup & Restore",
+                    description = "Export and import your data",
+                    onClick = onBackupRestoreClick
+                )
+
+                Divider(modifier = Modifier.padding(horizontal = 8.dp))
+
                 ProfileMenuItem(
                     icon = Icons.Filled.QueryStats,
                     title = "Reading Analytics",
