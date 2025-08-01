@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
-            scheduleSubscriptionWorker()
+            // scheduleSubscriptionWorker()
         }
     }
 
@@ -98,6 +98,7 @@ class MainActivity : ComponentActivity() {
         }
 
 
+        /*
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -107,6 +108,7 @@ class MainActivity : ComponentActivity() {
         } else {
             scheduleSubscriptionWorker()
         }
+        */
 
         setContent {
             // Explicitly define the types for the state collectors to help the compiler.
@@ -149,7 +151,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val updateSubscriptionsAndScheduleWorker: () -> Unit = {
-                        scheduleSubscriptionWorker()
+                        // scheduleSubscriptionWorker()
                     }
 
                     when (currentScreen) {
@@ -240,7 +242,7 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
+    /*
     private fun scheduleSubscriptionWorker() {
         // This function is now simplified. We no longer need to check the number of subscriptions
         // here because the background worker is designed to handle the case of zero subscriptions gracefully.
@@ -257,4 +259,5 @@ class MainActivity : ComponentActivity() {
             periodicWorkRequest
         )
     }
+    */
 }
