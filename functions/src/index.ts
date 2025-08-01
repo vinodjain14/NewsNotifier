@@ -6,7 +6,6 @@ import Parser from "rss-parser";
 
 admin.initializeApp();
 const db = admin.firestore();
-const messaging = admin.messaging();
 const rssParser = new Parser();
 
 interface Article {
@@ -169,7 +168,11 @@ async function sendNotificationsForArticle(
             userData?.fcmTokens &&
             Array.isArray(userData.fcmTokens)
           ) {
-            tokens.push(...userData.fcmTokens);
+            // Filter out any empty or invalid tokens before adding them
+            const validTokens = userData.fcmTokens.filter(
+              (token: unknown) => typeof token === "string" && token.length > 0
+            );
+            tokens.push(...validTokens);
           }
 
           await db
@@ -194,22 +197,25 @@ async function sendNotificationsForArticle(
     );
 
     if (tokens.length > 0) {
-      const payload: admin.messaging.MessagingPayload = {
+      // Use a Set to ensure unique tokens
+      const uniqueTokens = [...new Set(tokens)];
+
+      logger.info(
+        `Send nfn "${article.title}" to ${uniqueTokens.length} unique tokens.`
+      );
+
+      const message = {
         notification: {
           title: `New from ${article.sourceName}`,
           body: article.title,
           sound: "default",
         },
         data: {url: article.url},
+        tokens: uniqueTokens,
       };
 
-      logger.info(
-        `Sending notification for "${article.title}" ` +
-        `to ${tokens.length} tokens.`
-      );
-
       try {
-        await messaging.sendToDevice(tokens, payload);
+        await admin.messaging().sendEachForMulticast(message);
       } catch (msgError) {
         logger.error(
           "Failed to send push notification:",

@@ -25,6 +25,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
 
+        NotificationHelper.init(this)
+
         // Log the message to see the data in Logcat
         Log.d("FCM", "From: ${remoteMessage.from}")
 

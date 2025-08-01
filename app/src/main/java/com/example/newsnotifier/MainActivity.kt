@@ -15,19 +15,16 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.newsnotifier.ui.theme.AppTypography
 import com.example.newsnotifier.ui.theme.NewsNotifierTheme
 import com.example.newsnotifier.utils.*
-import com.example.newsnotifier.workers.SubscriptionWorker
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.messaging.ktx.messaging
 import kotlinx.coroutines.launch
-import java.util.concurrent.TimeUnit
 
 // Define Screen enum at the top level of the file, outside the MainActivity class.
 enum class Screen {
@@ -63,11 +60,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Launcher for the notification permission request.
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
-            // scheduleSubscriptionWorker()
+            // Permission is granted. You can now expect notifications to appear.
+            Log.d("Permissions", "POST_NOTIFICATIONS permission granted.")
+        } else {
+            // Explain to the user that the app will not show notifications.
+            Log.w("Permissions", "POST_NOTIFICATIONS permission denied.")
         }
     }
 
@@ -85,6 +87,9 @@ class MainActivity : ComponentActivity() {
 
         initialNotificationId = intent.getStringExtra(NotificationHelper.NOTIFICATION_ID_EXTRA)
 
+        // Request the notification permission as soon as the app starts.
+        askNotificationPermission()
+
         // Get the current FCM token and save it if a user is logged in
         Firebase.messaging.token.addOnCompleteListener { task ->
             if (!task.isSuccessful) {
@@ -96,19 +101,6 @@ class MainActivity : ComponentActivity() {
             Log.d("FCM", "Current FCM Token: $token")
             MyFirebaseMessagingService.sendRegistrationToServer(token)
         }
-
-
-        /*
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            } else {
-                scheduleSubscriptionWorker()
-            }
-        } else {
-            scheduleSubscriptionWorker()
-        }
-        */
 
         setContent {
             // Explicitly define the types for the state collectors to help the compiler.
@@ -242,6 +234,21 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    private fun askNotificationPermission() {
+        // This is only necessary for API level 33 and above (Android 13).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                // Permission is already granted.
+            } else {
+                // Directly ask for the permission. The OS will show the dialog.
+                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
     /*
     private fun scheduleSubscriptionWorker() {
         // This function is now simplified. We no longer need to check the number of subscriptions
