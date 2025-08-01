@@ -21,13 +21,13 @@ interface Article {
 
 export const fetchAndNotify = onSchedule(
   {
-    schedule: "every 15 minutes",
+    schedule: "every 5 minutes",
     memory: "512MiB",
     timeoutSeconds: 300,
   },
   async () => {
     try {
-      logger.info("Starting RSS feed fetch cycle.");
+      logger.info("Starting RSS feed fetch cycle now.");
 
       try {
         const subscriptionsSnapshot = await db.collectionGroup("subscriptions")

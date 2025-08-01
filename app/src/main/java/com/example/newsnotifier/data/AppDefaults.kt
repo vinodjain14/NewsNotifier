@@ -1,58 +1,60 @@
 package com.example.newsnotifier.data
 
-/**
- * Defines default and predefined news sources for the app.
- */
-object AppDefaults {
+import androidx.compose.ui.graphics.Color
+import com.example.newsnotifier.ui.theme.Primary
+import com.example.newsnotifier.ui.theme.Purple40
+import com.example.newsnotifier.ui.theme.Purple80
+import com.example.newsnotifier.ui.theme.PurpleGrey40
 
-    data class PredefinedSource(
-        val name: String,
-        val type: SubscriptionType,
-        val sourceUrl: String,
-        val description: String, // Added for UI
-        val tag: String? = null // Added for UI (e.g., "TRENDING", "RELIABLE")
+object AppDefaults {
+    val xPersonalities = listOf(
+        PredefinedSource("Elon Musk", "@elonmusk", SubscriptionType.TWITTER, "Tech"),
+        PredefinedSource("Naval Ravikant", "@naval", SubscriptionType.TWITTER, "Philosophy"),
+        PredefinedSource("Vitalik Buterin", "@VitalikButerin", SubscriptionType.TWITTER, "Crypto"),
+        PredefinedSource("Lex Fridman", "@lexfridman", SubscriptionType.TWITTER, "AI & Science")
     )
 
     val newsChannels = listOf(
-        PredefinedSource("Reuters", SubscriptionType.RSS_FEED, "http://feeds.reuters.com/reuters/topNews", "International news and wire reports", "RELIABLE"),
-        PredefinedSource("BBC News", SubscriptionType.RSS_FEED, "http://feeds.bbci.co.uk/news/rss.xml", "Global news and current affairs"),
-        PredefinedSource("CNN News", SubscriptionType.RSS_FEED, "http://rss.cnn.com/rss/cnn_topstories.rss", "Breaking news and in-depth analysis"),
-        PredefinedSource("The New York Times", SubscriptionType.RSS_FEED, "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml", "Award-winning journalism"),
-        PredefinedSource("The Guardian", SubscriptionType.RSS_FEED, "https://www.theguardian.com/world/rss", "Independent UK news"),
-        PredefinedSource("Al Jazeera", SubscriptionType.RSS_FEED, "https://www.aljazeera.com/xml/rss/all.xml", "Middle East and international news"),
-        PredefinedSource("NDTV", SubscriptionType.RSS_FEED, "https://feeds.feedburner.com/ndtv/latest", "Indian news and entertainment"),
-        PredefinedSource("The Hindu", SubscriptionType.RSS_FEED, "https://www.thehindu.com/feeder/default.rss", "Comprehensive Indian news coverage"),
-        PredefinedSource("The Economic Times", SubscriptionType.RSS_FEED, "https://economictimes.indiatimes.com/rssfeedsdefault.cms", "Indian business and economy news"),
-        PredefinedSource("Livemint", SubscriptionType.RSS_FEED, "https://www.livemint.com/rss/homepage", "Financial news and analysis"),
-        PredefinedSource("Moneycontrol", SubscriptionType.RSS_FEED, "https://www.moneycontrol.com/rss/latestnews.xml", "Indian stock market and finance news"),
-        PredefinedSource("WSJ", SubscriptionType.RSS_FEED, "https://feeds.a.dj.com/rss/RssPublic.xml", "Business and financial news from around the world"),
-        PredefinedSource("MarketWatch", SubscriptionType.RSS_FEED, "https://www.marketwatch.com/public/rss/mw_topstories.xml", "Stock market, financial, and business news"),
-        PredefinedSource("Financial Times", SubscriptionType.RSS_FEED, "https://www.ft.com/rss/home", "Global business and finance news")
+        PredefinedSource("CNN News", "http://rss.cnn.com/rss/cnn_topstories.rss", SubscriptionType.RSS_FEED, "World"),
+        PredefinedSource("BBC News", "http://feeds.bbci.co.uk/news/rss.xml", SubscriptionType.RSS_FEED, "World"),
+        PredefinedSource("Reuters", "https://www.reuters.com/tools/rss", SubscriptionType.RSS_FEED, "Business"),
+        PredefinedSource("The Wall Street Journal", "https://feeds.a.dj.com/rss/RSSWorldNews.xml", SubscriptionType.RSS_FEED, "Business"),
+        PredefinedSource("TechCrunch", "https://techcrunch.com/feed/", SubscriptionType.RSS_FEED, "Tech"),
+        PredefinedSource("The Verge", "https://www.theverge.com/rss/index.xml", SubscriptionType.RSS_FEED, "Tech")
     )
 
-    val xPersonalities = listOf(
-        PredefinedSource("Donald Trump", SubscriptionType.TWITTER, "realDonaldTrump", "Political updates and statements", "TRENDING"),
-        PredefinedSource("Elon Musk", SubscriptionType.TWITTER, "elonmusk", "Tech innovations and business news"),
-        PredefinedSource("Fox News", SubscriptionType.TWITTER, "FoxNews", "Breaking news and political coverage"),
-        PredefinedSource("MAGA Voice", SubscriptionType.TWITTER, "MAGAVoice", "Conservative political commentary"),
-        PredefinedSource("WSJ", SubscriptionType.TWITTER, "wsj", "Official Wall Street Journal tweets"),
-        PredefinedSource("CNN News", SubscriptionType.TWITTER, "CNN", "Official CNN breaking news and updates"),
-        PredefinedSource("MarketWatch", SubscriptionType.TWITTER, "MarketWatch", "Real-time market news and analysis"),
-        PredefinedSource("Financial Times", SubscriptionType.TWITTER, "FT", "Official Financial Times tweets"),
-        PredefinedSource("Yahoo Finance", SubscriptionType.TWITTER, "YahooFinance", "Financial news, data & quotes"),
-        PredefinedSource("Jim Cramer", SubscriptionType.TWITTER, "jimcramer", "Mad Money host's market insights"),
-        PredefinedSource("Modi", SubscriptionType.TWITTER, "narendramodi", "Official account of the Prime Minister of India")
+    data class PredefinedSource(
+        val name: String,
+        val sourceUrl: String,
+        val type: SubscriptionType,
+        val tag: String? = null
     )
 
     /**
-     * Generates initials from a given name for display in circular/square icons.
+     * Generates initials from a given name.
+     * *** FIX: This function is now safer and handles null or empty names. ***
+     * @param name The full name or source name.
+     * @return A string containing the first one or two letters, or a default "?" if the name is invalid.
      */
-    fun getInitials(name: String): String {
-        val words = name.split(" ", "-").filter { it.isNotBlank() }
+    fun getInitials(name: String?): String {
+        if (name.isNullOrBlank()) {
+            return "?"
+        }
+        val words = name.split(" ").filter { it.isNotBlank() }
         return when {
-            words.size >= 2 -> "${words[0].first()}${words[1].first()}".uppercase()
-            words.size == 1 -> words[0].first().toString().uppercase()
-            else -> ""
+            words.size >= 2 -> "${words[0].first()}${words[1].first()}"
+            words.isNotEmpty() -> "${words[0].first()}"
+            else -> "?"
+        }.uppercase()
+    }
+
+    fun getColorFor(name: String): Color {
+        val hash = name.hashCode()
+        return when (hash % 4) {
+            0 -> Primary
+            1 -> Purple40
+            2 -> Purple80
+            else -> PurpleGrey40
         }
     }
 }
