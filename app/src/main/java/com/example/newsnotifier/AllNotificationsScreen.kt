@@ -34,6 +34,7 @@ import com.example.newsnotifier.ui.theme.*
 import com.example.newsnotifier.utils.NotificationHelper
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -65,20 +66,26 @@ fun AllNotificationsScreen(
     }
 
     val groupedNotifications = remember(filteredNotifications) {
-        filteredNotifications
-            .groupBy {
-                val dateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(it.timestamp), ZoneId.systemDefault())
-                val today = LocalDateTime.now(ZoneId.systemDefault()).toLocalDate()
-                val yesterday = today.minusDays(1)
+        val today = LocalDate.now()
+        val yesterday = today.minusDays(1)
 
-                when (dateTime.toLocalDate()) {
+        // 1. Group by the actual LocalDate
+        val groups = filteredNotifications.groupBy {
+            LocalDateTime.ofInstant(Instant.ofEpochMilli(it.timestamp), ZoneId.systemDefault()).toLocalDate()
+        }
+
+        // 2. Sort the keys (which are LocalDates) in descending order
+        groups.toSortedMap(compareByDescending { it })
+            // 3. Map the sorted keys to their display string ("TODAY", "YESTERDAY", etc.)
+            .mapKeys { (date, _) ->
+                when (date) {
                     today -> "TODAY"
                     yesterday -> "YESTERDAY"
-                    else -> dateTime.format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))
+                    else -> date.format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))
                 }
             }
-            .toSortedMap(compareByDescending { it })
     }
+
 
     BackHandler {
         onNavigateBack()

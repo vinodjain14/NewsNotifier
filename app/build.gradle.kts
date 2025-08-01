@@ -107,6 +107,10 @@ dependencies {
     // Date and time handling
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.5.0")
 
+    // Firebase stack
+    implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-messaging-ktx")
+
     // Testing dependencies
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,11 +24,12 @@ import com.example.newsnotifier.ui.theme.NewsNotifierTheme
 import com.example.newsnotifier.utils.*
 import com.example.newsnotifier.workers.SubscriptionWorker
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.ktx.Firebase
+import com.google.firebase.messaging.ktx.messaging
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 // Define Screen enum at the top level of the file, outside the MainActivity class.
-// This was the primary source of the "Unresolved reference" errors.
 enum class Screen {
     Welcome,
     ChooseAccount,
@@ -82,6 +84,19 @@ class MainActivity : ComponentActivity() {
         DataFetcher.init(this)
 
         initialNotificationId = intent.getStringExtra(NotificationHelper.NOTIFICATION_ID_EXTRA)
+
+        // Get the current FCM token and save it if a user is logged in
+        Firebase.messaging.token.addOnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                Log.w("FCM", "Fetching FCM registration token failed", task.exception)
+                return@addOnCompleteListener
+            }
+            // Get new FCM registration token
+            val token = task.result
+            Log.d("FCM", "Current FCM Token: $token")
+            MyFirebaseMessagingService.sendRegistrationToServer(token)
+        }
+
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -227,21 +242,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun scheduleSubscriptionWorker() {
+        // This function is now simplified. We no longer need to check the number of subscriptions
+        // here because the background worker is designed to handle the case of zero subscriptions gracefully.
+        // We just need to ensure it's scheduled.
         val workName = "SubscriptionCheckWork"
-        val subscriptions = subscriptionManager.getSubscriptions()
 
-        if (subscriptions.isNotEmpty()) {
-            val periodicWorkRequest = PeriodicWorkRequestBuilder<SubscriptionWorker>(15, TimeUnit.MINUTES)
-                .addTag(workName)
-                .build()
+        val periodicWorkRequest = PeriodicWorkRequestBuilder<SubscriptionWorker>(15, TimeUnit.MINUTES)
+            .addTag(workName)
+            .build()
 
-            workManager.enqueueUniquePeriodicWork(
-                workName,
-                ExistingPeriodicWorkPolicy.REPLACE,
-                periodicWorkRequest
-            )
-        } else {
-            workManager.cancelUniqueWork(workName)
-        }
+        workManager.enqueueUniquePeriodicWork(
+            workName,
+            ExistingPeriodicWorkPolicy.REPLACE,
+            periodicWorkRequest
+        )
     }
 }

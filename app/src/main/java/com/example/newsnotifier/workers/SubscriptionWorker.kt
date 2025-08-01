@@ -3,7 +3,8 @@ package com.example.newsnotifier.workers
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.example.newsnotifier.data.SubscriptionType // Added import for SubscriptionType
+import com.example.newsnotifier.data.Subscription
+import com.example.newsnotifier.data.SubscriptionType
 import com.example.newsnotifier.utils.DataFetcher
 import com.example.newsnotifier.utils.NotificationHelper
 import com.example.newsnotifier.utils.SubscriptionManager
@@ -27,43 +28,43 @@ class SubscriptionWorker(
     override suspend fun doWork(): Result {
         return withContext(Dispatchers.IO) {
             try {
-                val subscriptions = subscriptionManager.getSubscriptions()
+                // *** FIX: Get subscriptions from the flow's current value ***
+                val subscriptions = subscriptionManager.subscriptionsFlow.value
+
                 if (subscriptions.isEmpty()) {
                     // No subscriptions, so nothing to do. Success.
                     return@withContext Result.success()
                 }
 
-                subscriptions.forEach { subscription ->
+                subscriptions.forEach { subscription: Subscription ->
                     when (subscription.type) {
-                        SubscriptionType.RSS_FEED -> { // Explicitly use SubscriptionType.RSS_FEED
+                        SubscriptionType.RSS_FEED -> {
                             val newArticles = dataFetcher.fetchRssFeed(subscription.sourceUrl)
                             newArticles.forEach { article ->
                                 // Show notification for each new article
                                 NotificationHelper.showNotification(
                                     applicationContext,
                                     "New Article from ${subscription.name}",
-                                    article.title, // Assuming article.title is the message
+                                    article.title,
                                     notificationIdCounter.incrementAndGet(),
                                     sourceName = subscription.name,
-                                    isBreaking = article.isBreaking, // Pass breaking status from fetched article
-                                    isNew = article.isNew // Pass new status from fetched article
+                                    isBreaking = article.isBreaking,
+                                    isNew = article.isNew
                                 )
                             }
                         }
-                        SubscriptionType.TWITTER -> { // Explicitly use SubscriptionType.TWITTER
-                            // Assuming sourceUrl for Twitter is the username
+                        SubscriptionType.TWITTER -> {
                             val newTweets = dataFetcher.fetchTweets(subscription.sourceUrl)
                             newTweets.forEach { tweet ->
                                 // Show notification for each new tweet
                                 NotificationHelper.showNotification(
                                     applicationContext,
-                                    "New Tweet from @${subscription.name}", // Use subscription.name for display
+                                    "New Tweet from @${subscription.name}",
                                     tweet.text,
                                     notificationIdCounter.incrementAndGet(),
                                     sourceName = subscription.name,
-                                    // For simplicity, assuming tweets are not "breaking" or "new" unless specified by API
                                     isBreaking = false,
-                                    isNew = true // Consider all fetched tweets as new for now
+                                    isNew = true
                                 )
                             }
                         }

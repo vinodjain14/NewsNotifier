@@ -65,9 +65,10 @@ fun SubscriptionSelectionScreen(
         }
     }
 
+    // *** FIX 1: Changed minimum selection to 1 ***
     val canSaveSelections by remember {
         derivedStateOf {
-            (selectedNewsChannels.size + selectedXPersonalities.size) >= 2
+            (selectedNewsChannels.size + selectedXPersonalities.size) >= 1
         }
     }
 
@@ -123,8 +124,9 @@ fun SubscriptionSelectionScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.height(8.dp))
+                            // *** FIX 1: Updated UI text ***
                             Text(
-                                text = "Select at least 2 sources to get started with personalized news updates",
+                                text = "Select at least 1 source to get started with personalized news updates",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -137,7 +139,8 @@ fun SubscriptionSelectionScreen(
                     val totalSelected = selectedNewsChannels.size + selectedXPersonalities.size
                     SelectionProgress(
                         current = totalSelected,
-                        required = 2,
+                        // *** FIX 1: Updated required count ***
+                        required = 1,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -185,35 +188,28 @@ fun SubscriptionSelectionScreen(
                         AnimatedGradientButton(
                             text = "Save Selections",
                             onClick = {
-                                subscriptionManager.getSubscriptions().forEach { sub ->
-                                    subscriptionManager.removeSubscription(sub.id)
+                                // *** FIX 2: Added login check to prevent crash ***
+                                if (isLoggedIn) {
+                                    scope.launch {
+                                        val allSelections = (selectedNewsChannels + selectedXPersonalities).map { predefinedSource ->
+                                            Subscription(
+                                                id = UUID.randomUUID().toString(),
+                                                name = predefinedSource.name,
+                                                type = predefinedSource.type,
+                                                sourceUrl = predefinedSource.sourceUrl
+                                            )
+                                        }
+                                        subscriptionManager.overwriteSubscriptions(allSelections)
+                                        onSubscriptionsChanged()
+                                        snackbarHostState.showSnackbar("Subscriptions saved!")
+                                        onNavigateToManage()
+                                    }
+                                } else {
+                                    // Show a message if the user is not logged in
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Please log in to save your selections.")
+                                    }
                                 }
-
-                                selectedNewsChannels.forEach { predefinedSource ->
-                                    val newSub = Subscription(
-                                        id = UUID.randomUUID().toString(),
-                                        name = predefinedSource.name,
-                                        type = predefinedSource.type,
-                                        sourceUrl = predefinedSource.sourceUrl
-                                    )
-                                    subscriptionManager.addSubscription(newSub)
-                                }
-
-                                selectedXPersonalities.forEach { predefinedSource ->
-                                    val newSub = Subscription(
-                                        id = UUID.randomUUID().toString(),
-                                        name = predefinedSource.name,
-                                        type = predefinedSource.type,
-                                        sourceUrl = predefinedSource.sourceUrl
-                                    )
-                                    subscriptionManager.addSubscription(newSub)
-                                }
-
-                                onSubscriptionsChanged()
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Subscriptions saved!")
-                                }
-                                onNavigateToManage()
                             },
                             enabled = canSaveSelections,
                             modifier = Modifier.fillMaxWidth(),
@@ -304,7 +300,7 @@ private fun SelectionProgress(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = "$current of $required minimum sources selected",
+                    text = "$current of $required minimum source selected",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -358,7 +354,6 @@ private fun SourceSection(
                 )
             }
 
-            // FIXED: Using LazyRow instead of FlowRow to avoid experimental API
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -493,7 +488,7 @@ private fun AddSubscriptionDialog(
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        SubscriptionType.entries.forEach { subscriptionType ->
+                        SubscriptionType.values().forEach { subscriptionType ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)

@@ -1,5 +1,6 @@
 package com.example.newsnotifier
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,7 +26,6 @@ import com.example.newsnotifier.ui.components.*
 import com.example.newsnotifier.ui.theme.*
 import com.example.newsnotifier.utils.*
 import kotlinx.coroutines.launch
-import android.net.Uri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,7 +49,8 @@ fun SettingsScreen(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
         uri?.let {
-            val subscriptions = subscriptionManager.getSubscriptions()
+            // *** FIX: Get subscriptions from the flow's current value ***
+            val subscriptions = subscriptionManager.subscriptionsFlow.value
             val success = backupRestoreManager.exportSubscriptions(subscriptions, it)
             scope.launch {
                 snackbarHostState.showSnackbar(
@@ -65,7 +66,8 @@ fun SettingsScreen(
         uri?.let {
             val importedSubscriptions = backupRestoreManager.importSubscriptions(it)
             if (importedSubscriptions != null) {
-                subscriptionManager.getSubscriptions().forEach { sub ->
+                // *** FIX: Get subscriptions from the flow's current value ***
+                subscriptionManager.subscriptionsFlow.value.forEach { sub ->
                     subscriptionManager.removeSubscription(sub.id)
                 }
                 importedSubscriptions.forEach { sub ->

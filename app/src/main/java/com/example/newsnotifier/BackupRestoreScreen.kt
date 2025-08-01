@@ -43,7 +43,8 @@ fun BackupRestoreScreen(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
         uri?.let {
-            val success = backupManager.exportSubscriptions(subscriptionManager.getSubscriptions(), it)
+            // *** FIX: Get subscriptions from the flow's current value ***
+            val success = backupManager.exportSubscriptions(subscriptionManager.subscriptionsFlow.value, it)
             scope.launch {
                 snackbarHostState.showSnackbar(
                     if (success) "Subscriptions exported successfully!" else "Failed to export subscriptions."
@@ -58,7 +59,8 @@ fun BackupRestoreScreen(
         uri?.let {
             backupManager.importSubscriptions(it)?.let { importedSubscriptions ->
                 // Clear existing subscriptions before importing
-                subscriptionManager.getSubscriptions().forEach { sub ->
+                // *** FIX: Get subscriptions from the flow's current value ***
+                subscriptionManager.subscriptionsFlow.value.forEach { sub ->
                     subscriptionManager.removeSubscription(sub.id)
                 }
                 importedSubscriptions.forEach { subscription ->

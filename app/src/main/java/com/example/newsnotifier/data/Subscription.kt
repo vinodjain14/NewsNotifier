@@ -2,16 +2,14 @@ package com.example.newsnotifier.data
 
 /**
  * Represents a user's subscription to a news source or X (Twitter) personality.
- * @param id A unique identifier for the subscription.
- * @param name A user-friendly name for the subscription (e.g., "TechCrunch", "Elon Musk").
- * @param type The type of subscription (e.g., RSS_FEED, TWITTER).
- * @param sourceUrl The URL for RSS feeds or the username for Twitter.
+ * NOTE: Default values have been added to each property to ensure compatibility
+ * with Firestore's automatic data mapping, which requires a no-argument constructor.
  */
 data class Subscription(
-    val id: String,
-    val name: String,
-    val type: SubscriptionType,
-    val sourceUrl: String
+    val id: String = "",
+    val name: String = "",
+    val type: SubscriptionType = SubscriptionType.RSS_FEED,
+    val sourceUrl: String = ""
 )
 
 enum class SubscriptionType {
