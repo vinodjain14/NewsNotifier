@@ -40,7 +40,8 @@ enum class Screen {
     ReadingList,
     AccessibilitySettings,
     BackupRestore,
-    LoggedOut
+    LoggedOut,
+    Search
 }
 
 class MainActivity : ComponentActivity() {
@@ -142,7 +143,6 @@ class MainActivity : ComponentActivity() {
                     }
 
                     when (currentScreen) {
-                        // --- THIS IS THE CHANGE ---
                         Screen.Welcome -> WelcomeScreen(
                             onSignInWithGoogle = {
                                 val signInIntent = authManager.getGoogleSignInIntent()
@@ -171,6 +171,7 @@ class MainActivity : ComponentActivity() {
                                 scope.launch { snackbarHostState.showSnackbar("Logged out successfully.") }
                             },
                             onNavigateToProfile = { currentScreen = Screen.MyProfile },
+                            onNavigateToSearch = { currentScreen = Screen.Search },
                             snackbarHostState = snackbarHostState
                         )
                         Screen.Manage -> ManageSubscriptionsScreen(
@@ -226,6 +227,16 @@ class MainActivity : ComponentActivity() {
                         )
                         Screen.LoggedOut -> LoggedOutScreen(
                             onNavigateToWelcome = { currentScreen = Screen.Welcome }
+                        )
+                        Screen.Search -> SearchScreen(
+                            onNavigateBack = { currentScreen = Screen.Selection },
+                            onAddSubscription = { subscription ->
+                                subscriptionManager.addSubscription(subscription)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Added ${subscription.name}")
+                                }
+                                currentScreen = Screen.Selection
+                            }
                         )
                     }
                 }
