@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "NewsNotifier"
+rootProject.name = "Pulse"
 include(":app")
