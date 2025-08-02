@@ -1,10 +1,6 @@
 package com.example.newsnotifier.utils
 
 import android.util.Log
-import com.google.firebase.auth.ktx.auth
-import com.google.firebase.firestore.FieldValue
-import com.google.firebase.firestore.ktx.firestore
-import com.google.firebase.ktx.Firebase
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import kotlin.random.Random
@@ -58,8 +54,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         super.onNewToken(token)
         Log.d("FCM", "Refreshed token: $token")
 
-        // Send this new token to your Firestore database.
-        sendRegistrationToServer(token)
+        // If you had a local server to send this token to, you would do it here.
+        // sendRegistrationToServer(token)
     }
 
     companion object {
@@ -67,22 +63,11 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
          * Saves the FCM token to the current user's document in Firestore.
          * @param token The FCM registration token for this device.
          */
+        // This function is no longer needed as we are not using Firestore.
+        /*
         fun sendRegistrationToServer(token: String?) {
             if (token == null) return
-
-            val user = Firebase.auth.currentUser
-            if (user != null) {
-                val userDocRef = Firebase.firestore.collection("users").document(user.uid)
-
-                // Use FieldValue.arrayUnion to add the token to the array without creating duplicates.
-                userDocRef.update("fcmTokens", FieldValue.arrayUnion(token))
-                    .addOnSuccessListener {
-                        Log.d("FCM", "FCM token successfully saved to Firestore.")
-                    }
-                    .addOnFailureListener { e ->
-                        Log.w("FCM", "Error saving FCM token", e)
-                    }
-            }
         }
+        */
     }
 }
