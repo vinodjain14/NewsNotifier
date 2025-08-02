@@ -17,14 +17,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.newsnotifier.ui.theme.AppTypography
 import com.example.newsnotifier.ui.theme.NewsNotifierTheme
 import com.example.newsnotifier.utils.*
+import com.example.newsnotifier.workers.SubscriptionWorker
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.messaging.ktx.messaging
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 
 // Define Screen enum at the top level of the file, outside the MainActivity class.
 enum class Screen {
@@ -99,7 +103,7 @@ class MainActivity : ComponentActivity() {
             // Get new FCM registration token
             val token = task.result
             Log.d("FCM", "Current FCM Token: $token")
-            MyFirebaseMessagingService.sendRegistrationToServer(token)
+            // MyFirebaseMessagingService.sendRegistrationToServer(token) // This is disabled
         }
 
         setContent {
@@ -143,7 +147,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val updateSubscriptionsAndScheduleWorker: () -> Unit = {
-                        // scheduleSubscriptionWorker()
+                        scheduleSubscriptionWorker()
                     }
 
                     when (currentScreen) {
@@ -249,14 +253,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /*
+
     private fun scheduleSubscriptionWorker() {
         // This function is now simplified. We no longer need to check the number of subscriptions
         // here because the background worker is designed to handle the case of zero subscriptions gracefully.
         // We just need to ensure it's scheduled.
         val workName = "SubscriptionCheckWork"
 
-        val periodicWorkRequest = PeriodicWorkRequestBuilder<SubscriptionWorker>(15, TimeUnit.MINUTES)
+        val periodicWorkRequest = PeriodicWorkRequestBuilder<SubscriptionWorker>(5, TimeUnit.MINUTES)
             .addTag(workName)
             .build()
 
@@ -266,5 +270,4 @@ class MainActivity : ComponentActivity() {
             periodicWorkRequest
         )
     }
-    */
 }
