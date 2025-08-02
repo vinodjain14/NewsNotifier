@@ -3,31 +3,29 @@ package com.example.pulse.utils
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.example.pulse.MainActivity
 import com.example.pulse.R
 import com.example.pulse.data.NotificationItem
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import java.util.UUID
-import android.content.Intent
-import android.app.PendingIntent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.*
 
-/**
- * Helper class for creating and managing notifications.
- */
 object NotificationHelper {
 
-    private const val CHANNEL_ID = "news_notifier_channel"
-    private const val CHANNEL_NAME = "News Notifier Updates"
-    private const val CHANNEL_DESCRIPTION = "Notifications for new news and tweets"
+    private const val CHANNEL_ID = "pulse_channel"
+    private const val CHANNEL_NAME = "Pulse Updates"
+    private const val CHANNEL_DESCRIPTION = "Notifications for new news and updates"
     private const val NOTIFICATIONS_PREFS = "notifications_prefs"
     private const val NOTIFICATIONS_KEY = "notifications_list"
     const val NOTIFICATION_ID_EXTRA = "notification_id_extra"
@@ -35,26 +33,17 @@ object NotificationHelper {
     private lateinit var applicationContext: Context
     private val gson = Gson()
 
-    // MutableStateFlow to hold the current list of notifications and emit updates
     private val _notificationsFlow = MutableStateFlow<List<NotificationItem>>(emptyList())
     val notificationsFlow: StateFlow<List<NotificationItem>> = _notificationsFlow.asStateFlow()
 
-    /**
-     * Initializes the NotificationHelper with application context.
-     * This should be called once early in the application lifecycle (e.g., in MainActivity's onCreate).
-     */
     fun init(context: Context) {
         if (!::applicationContext.isInitialized) {
             applicationContext = context.applicationContext
             createNotificationChannel(applicationContext)
-            // Load initial notifications into the flow
             _notificationsFlow.value = loadNotificationsFromPrefs()
         }
     }
 
-    /**
-     * Creates a notification channel for Android O (API 26) and above.
-     */
     private fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -70,16 +59,6 @@ object NotificationHelper {
         }
     }
 
-    /**
-     * Shows a notification to the user and saves it to SharedPreferences.
-     * @param context The application context.
-     * @param title The title of the notification.
-     * @param message The main text of the notification.
-     * @param notificationId A unique ID for this notification.
-     * @param sourceName The name of the source (e.g., "Reuters", "Elon Musk").
-     * @param isBreaking True if the notification is for breaking news.
-     * @param isNew True if the notification is for new content (distinct from breaking).
-     */
     fun showNotification(
         context: Context,
         title: String,
@@ -89,23 +68,19 @@ object NotificationHelper {
         isBreaking: Boolean = false,
         isNew: Boolean = false
     ) {
-        // Ensure init has been called
         if (!::applicationContext.isInitialized) {
             init(context.applicationContext)
         }
 
-        // Check for POST_NOTIFICATIONS permission on Android 13 (API 33) and above
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ActivityCompat.checkSelfPermission(
                 context,
                 Manifest.permission.POST_NOTIFICATIONS
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            // Permission not granted, cannot show notification.
             return
         }
 
-        // Create a NotificationItem to store
         val notificationItem = NotificationItem(
             id = UUID.randomUUID().toString(),
             title = title,
@@ -114,17 +89,17 @@ object NotificationHelper {
             isBreaking = isBreaking,
             isNew = isNew
         )
-        saveNotification(notificationItem) // Save and update flow before building the notification
+        saveNotification(notificationItem)
 
-        // Create an Intent to open MainActivity when the notification is tapped
-        val intent = Intent(context, com.example.pulse.MainActivity::class.java).apply {
+        // --- FIX: Corrected the Intent to properly reference MainActivity ---
+        val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            putExtra(NOTIFICATION_ID_EXTRA, notificationItem.id) // Pass the ID of the saved notification
+            putExtra(NOTIFICATION_ID_EXTRA, notificationItem.id)
         }
 
         val pendingIntent: PendingIntent = PendingIntent.getActivity(
             context,
-            notificationId, // Use the notificationId as request code for unique pending intents
+            notificationId,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -142,23 +117,16 @@ object NotificationHelper {
         }
     }
 
-    /**
-     * Saves a single notification to SharedPreferences and updates the flow.
-     */
     private fun saveNotification(notification: NotificationItem) {
         val currentList = _notificationsFlow.value.toMutableList()
-        currentList.add(0, notification) // Add to the beginning for newest first
-        // Optional: Limit the number of stored notifications to prevent excessive storage
-        val maxNotifications = 50
+        currentList.add(0, notification)
+        val maxNotifications = 100
         while (currentList.size > maxNotifications) {
             currentList.removeAt(currentList.size - 1)
         }
         updateNotifications(currentList)
     }
 
-    /**
-     * Marks a notification as read.
-     */
     fun markAsRead(notificationId: String) {
         val currentList = _notificationsFlow.value.toMutableList()
         val index = currentList.indexOfFirst { it.id == notificationId }
@@ -168,18 +136,12 @@ object NotificationHelper {
         }
     }
 
-    /**
-     * Deletes a notification.
-     */
     fun deleteNotification(notificationId: String) {
         val currentList = _notificationsFlow.value.toMutableList()
         currentList.removeAll { it.id == notificationId }
         updateNotifications(currentList)
     }
 
-    /**
-     * Centralized function to update the notifications list.
-     */
     private fun updateNotifications(newList: List<NotificationItem>) {
         val json = gson.toJson(newList)
         applicationContext.getSharedPreferences(NOTIFICATIONS_PREFS, Context.MODE_PRIVATE)
@@ -189,10 +151,6 @@ object NotificationHelper {
         _notificationsFlow.value = newList
     }
 
-
-    /**
-     * Loads all stored notifications from SharedPreferences (internal helper).
-     */
     private fun loadNotificationsFromPrefs(): List<NotificationItem> {
         val json = applicationContext.getSharedPreferences(NOTIFICATIONS_PREFS, Context.MODE_PRIVATE)
             .getString(NOTIFICATIONS_KEY, null)
@@ -204,17 +162,10 @@ object NotificationHelper {
         }
     }
 
-    /**
-     * Clears all stored notifications from SharedPreferences and updates the flow.
-     */
     fun clearAllNotifications() {
         if (!::applicationContext.isInitialized) {
             return
         }
-        applicationContext.getSharedPreferences(NOTIFICATIONS_PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .remove(NOTIFICATIONS_KEY)
-            .apply()
-        _notificationsFlow.value = emptyList() // Clear the flow
+        updateNotifications(emptyList())
     }
 }

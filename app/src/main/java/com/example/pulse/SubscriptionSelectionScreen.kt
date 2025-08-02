@@ -39,6 +39,7 @@ fun SubscriptionSelectionScreen(
     isLoggedIn: Boolean,
     onLogout: () -> Unit,
     onNavigateToProfile: () -> Unit,
+    onNavigateToSearch: () -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -46,6 +47,8 @@ fun SubscriptionSelectionScreen(
     var newSubscriptionSource by remember { mutableStateOf("") }
     var newSubscriptionType by remember { mutableStateOf(SubscriptionType.TWITTER) }
     val scope = rememberCoroutineScope()
+
+    var showAddSourceDialog by remember { mutableStateOf(false) }
 
     val selectedNewsChannels = remember { mutableStateListOf<AppDefaults.PredefinedSource>() }
     val selectedXPersonalities = remember { mutableStateListOf<AppDefaults.PredefinedSource>() }

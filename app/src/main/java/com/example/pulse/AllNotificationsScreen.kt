@@ -27,6 +27,7 @@ import com.example.pulse.data.Subscription
 import com.example.pulse.ui.components.ElevatedModernCard
 import com.example.pulse.ui.components.GradientDirection
 import com.example.pulse.ui.components.StaticGradientBackground
+import com.example.pulse.ui.components.SwipeableActionsBox
 import com.example.pulse.ui.theme.*
 import com.example.pulse.utils.NotificationHelper
 import com.example.pulse.utils.SubscriptionManager
@@ -42,7 +43,7 @@ fun AllNotificationsScreen(
     notificationIdToFocus: String? = null,
     onNavigateToReadingList: () -> Unit,
     readingListManager: ReadingListManager,
-    subscriptionManager: SubscriptionManager // <-- NOW ACCEPTS THE MANAGER
+    subscriptionManager: SubscriptionManager
 ) {
     val allNotifications by NotificationHelper.notificationsFlow.collectAsState()
     val scope = rememberCoroutineScope()
@@ -108,7 +109,6 @@ fun AllNotificationsScreen(
                     },
                     actions = {
                         IconButton(onClick = {
-                            // --- UPDATED REFRESH LOGIC ---
                             val currentSubscriptions = subscriptionManager.subscriptionsFlow.value
                             if (currentSubscriptions.isEmpty()) {
                                 scope.launch {
@@ -178,6 +178,7 @@ fun AllNotificationsScreen(
 
                         if (expandedGroups.contains(sourceName)) {
                             items(notifications, key = { it.id }) { notification ->
+                                // THIS IS THE CORRECTED CALL
                                 SwipeableNotificationCard(
                                     notification = notification,
                                     onRead = {
@@ -202,9 +203,8 @@ fun AllNotificationsScreen(
     }
 }
 
-// --- UPDATED DUMMY NOTIFICATION LOGIC ---
 private fun createDummyNotification(subscriptions: List<Subscription>): NotificationItem {
-    val randomSubscription = subscriptions.random() // Pick from user's subs
+    val randomSubscription = subscriptions.random()
     val titles = listOf("New Analysis Published", "Breaking Report", "Market Update", "Major Announcement")
     val messages = listOf(
         "A deep dive into the latest trends and what they mean for the future.",
@@ -215,12 +215,11 @@ private fun createDummyNotification(subscriptions: List<Subscription>): Notifica
 
     return NotificationItem(
         id = UUID.randomUUID().toString(),
-        sourceName = randomSubscription.name, // Use the subscribed source name
+        sourceName = randomSubscription.name,
         title = titles.random(),
         message = messages.random()
     )
 }
-
 
 @Composable
 private fun NotificationGroupHeader(
@@ -265,7 +264,7 @@ private fun NotificationGroupHeader(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+// --- THIS IS THE ONLY VERSION OF THIS FUNCTION THAT SHOULD EXIST IN THE FILE ---
 @Composable
 private fun SwipeableNotificationCard(
     notification: NotificationItem,
@@ -273,42 +272,24 @@ private fun SwipeableNotificationCard(
     onSave: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { false }
-    )
-
-    SwipeToDismissBox(
-        state = dismissState,
-        enableDismissFromStartToEnd = false,
-        backgroundContent = {
-            val color = Error.copy(alpha = 0.8f)
-            Box(
-                Modifier
+    SwipeableActionsBox(
+        actions = {
+            Row(
+                modifier = Modifier
                     .fillMaxSize()
-                    .background(color, shape = RoundedCornerShape(12.dp))
+                    .background(Error.copy(alpha = 0.8f), shape = RoundedCornerShape(12.dp))
                     .padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterEnd
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = {
-                        onRead()
-                        scope.launch { dismissState.reset() }
-                    }) {
-                        Icon(Icons.Default.Drafts, contentDescription = "Mark as Read", tint = Color.White)
-                    }
-                    IconButton(onClick = {
-                        onSave()
-                        scope.launch { dismissState.reset() }
-                    }) {
-                        Icon(Icons.Default.Bookmark, contentDescription = "Save", tint = Color.White)
-                    }
-                    IconButton(onClick = onDelete) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White)
-                    }
+                IconButton(onClick = onRead) {
+                    Icon(Icons.Default.Drafts, contentDescription = "Mark as Read", tint = Color.White)
+                }
+                IconButton(onClick = onSave) {
+                    Icon(Icons.Default.Bookmark, contentDescription = "Save", tint = Color.White)
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White)
                 }
             }
         }
