@@ -16,7 +16,7 @@ object SharingUtil {
             }
             append("Source: ${item.sourceName}")
             append("\n\n")
-            append("Shared via NOTT - News On The Top")
+            append("Shared via Pulse")
         }
 
         val shareIntent = Intent().apply {
@@ -27,6 +27,18 @@ object SharingUtil {
         }
 
         context.startActivity(Intent.createChooser(shareIntent, "Share Article"))
+    }
+
+    fun shareUrl(context: Context, url: String, title: String = "Share this article") {
+        val sendIntent: Intent = Intent().apply {
+            action = Intent.ACTION_SEND
+            putExtra(Intent.EXTRA_TEXT, url)
+            putExtra(Intent.EXTRA_SUBJECT, title)
+            type = "text/plain"
+        }
+
+        val shareIntent = Intent.createChooser(sendIntent, "Share article via...")
+        context.startActivity(shareIntent)
     }
 
     fun shareMultipleArticles(context: Context, items: List<NotificationItem>) {
