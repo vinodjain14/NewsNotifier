@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.DeleteSweep
@@ -17,23 +18,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.pulse.data.NotificationItem
-import com.example.pulse.data.Subscription
 import com.example.pulse.ui.components.ElevatedModernCard
 import com.example.pulse.ui.components.GradientDirection
 import com.example.pulse.ui.components.StaticGradientBackground
 import com.example.pulse.ui.components.SwipeableActionsBox
 import com.example.pulse.ui.theme.*
-import com.example.pulse.utils.NotificationHelper
-import com.example.pulse.utils.SubscriptionManager
+import com.example.pulse.utils.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.util.UUID
-import kotlin.random.Random
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,9 +45,9 @@ fun AllNotificationsScreen(
 ) {
     val allNotifications by NotificationHelper.notificationsFlow.collectAsState()
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     var expandedGroups by remember { mutableStateOf(setOf<String>()) }
     var showClearConfirmDialog by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
 
     LaunchedEffect(notificationIdToFocus, allNotifications) {
         if (notificationIdToFocus != null) {
@@ -104,28 +102,19 @@ fun AllNotificationsScreen(
                     title = { Text("All Notifications", fontWeight = FontWeight.Bold, fontSize = 22.sp) },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
                     },
                     actions = {
                         IconButton(onClick = {
-                            val currentSubscriptions = subscriptionManager.subscriptionsFlow.value
-                            if (currentSubscriptions.isEmpty()) {
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("No subscriptions to refresh.")
+                            scope.launch {
+                                isLoading = true
+                                val notifications = withContext(Dispatchers.IO) {
+                                    DataFetcher.fetchAllFeeds()
                                 }
-                            } else {
-                                val dummyNotification = createDummyNotification(currentSubscriptions)
-                                NotificationHelper.showNotification(
-                                    context = context,
-                                    title = dummyNotification.title,
-                                    message = dummyNotification.message,
-                                    notificationId = Random.nextInt(),
-                                    sourceName = dummyNotification.sourceName
-                                )
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Refreshed!")
-                                }
+                                NotificationHelper.addNotifications(notifications)
+                                isLoading = false
+                                snackbarHostState.showSnackbar("Refreshed!")
                             }
                         }) {
                             Icon(Icons.Default.Refresh, contentDescription = "Refresh Notifications")
@@ -146,54 +135,59 @@ fun AllNotificationsScreen(
                 )
             }
         ) { paddingValues ->
-            LazyColumn(
-                modifier = Modifier
-                    .padding(paddingValues)
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(vertical = 16.dp)
-            ) {
-                if (groupedNotifications.isEmpty()) {
-                    item {
-                        EmptyNotificationsCard(filter = "All")
-                    }
-                } else {
-                    groupedNotifications.forEach { (sourceName, notifications) ->
+            if (isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .padding(paddingValues)
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(vertical = 16.dp)
+                ) {
+                    if (groupedNotifications.isEmpty()) {
                         item {
-                            val isExpanded = expandedGroups.contains(sourceName)
-                            NotificationGroupHeader(
-                                sourceName = sourceName,
-                                count = notifications.size,
-                                isExpanded = isExpanded,
-                                onToggle = {
-                                    expandedGroups = if (isExpanded) {
-                                        expandedGroups - sourceName
-                                    } else {
-                                        expandedGroups + sourceName
-                                    }
-                                }
-                            )
+                            EmptyNotificationsCard(filter = "All")
                         }
-
-                        if (expandedGroups.contains(sourceName)) {
-                            items(notifications, key = { it.id }) { notification ->
-                                // THIS IS THE CORRECTED CALL
-                                SwipeableNotificationCard(
-                                    notification = notification,
-                                    onRead = {
-                                        NotificationHelper.markAsRead(notification.id)
-                                        scope.launch { snackbarHostState.showSnackbar("Marked as read.") }
-                                    },
-                                    onSave = {
-                                        readingListManager.addToReadingList(notification)
-                                        scope.launch { snackbarHostState.showSnackbar("Saved to reading list.") }
-                                    },
-                                    onDelete = {
-                                        NotificationHelper.deleteNotification(notification.id)
-                                        scope.launch { snackbarHostState.showSnackbar("Notification deleted.") }
+                    } else {
+                        groupedNotifications.forEach { (sourceName, notifications) ->
+                            item {
+                                val isExpanded = expandedGroups.contains(sourceName)
+                                NotificationGroupHeader(
+                                    sourceName = sourceName,
+                                    count = notifications.size,
+                                    isExpanded = isExpanded,
+                                    onToggle = {
+                                        expandedGroups = if (isExpanded) {
+                                            expandedGroups - sourceName
+                                        } else {
+                                            expandedGroups + sourceName
+                                        }
                                     }
                                 )
+                            }
+
+                            if (expandedGroups.contains(sourceName)) {
+                                items(notifications, key = { it.id }) { notification ->
+                                    SwipeableNotificationCard(
+                                        notification = notification,
+                                        onRead = {
+                                            NotificationHelper.markAsRead(notification.id)
+                                            scope.launch { snackbarHostState.showSnackbar("Marked as read.") }
+                                        },
+                                        onSave = {
+                                            readingListManager.addToReadingList(notification)
+                                            scope.launch { snackbarHostState.showSnackbar("Saved to reading list.") }
+                                        },
+                                        onDelete = {
+                                            NotificationHelper.deleteNotification(notification.id)
+                                            scope.launch { snackbarHostState.showSnackbar("Notification deleted.") }
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -201,24 +195,6 @@ fun AllNotificationsScreen(
             }
         }
     }
-}
-
-private fun createDummyNotification(subscriptions: List<Subscription>): NotificationItem {
-    val randomSubscription = subscriptions.random()
-    val titles = listOf("New Analysis Published", "Breaking Report", "Market Update", "Major Announcement")
-    val messages = listOf(
-        "A deep dive into the latest trends and what they mean for the future.",
-        "Reports are coming in about a significant event. Details are still emerging.",
-        "The latest numbers are in, showing a surprising shift in the market.",
-        "A press conference has been scheduled to announce a new partnership."
-    )
-
-    return NotificationItem(
-        id = UUID.randomUUID().toString(),
-        sourceName = randomSubscription.name,
-        title = titles.random(),
-        message = messages.random()
-    )
 }
 
 @Composable
@@ -264,7 +240,6 @@ private fun NotificationGroupHeader(
     }
 }
 
-// --- THIS IS THE ONLY VERSION OF THIS FUNCTION THAT SHOULD EXIST IN THE FILE ---
 @Composable
 private fun SwipeableNotificationCard(
     notification: NotificationItem,
@@ -346,6 +321,14 @@ private fun ModernNotificationCard(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                         )
                     }
+                    // --- ADDED TIMESTAMP ---
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = TimeUtils.formatRelativeTime(notification.timestamp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    // --- END TIMESTAMP ---
                 }
             }
         }

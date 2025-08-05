@@ -1,0 +1,212 @@
+[
+  {
+    "Market": "USA",
+    "Category": "Top News",
+    "Source Symbol": "RTR",
+    "Website name": "Reuters - Top News",
+    "URL": "https://rss.app/feeds/MZuVvrsORe1YXdYc.xml"
+  },
+  {
+    "Market": "USA",
+    "Category": "Market",
+    "Source Symbol": "WSJ",
+    "Website name": "WSJ - Market Main",
+    "URL": "https://feeds.content.dowjones.io/public/rss/RSSMarketsMain"
+  },
+  {
+    "Market": "USA",
+    "Category": "Business",
+    "Source Symbol": "WSJ",
+    "Website name": "WSJ - Business",
+    "URL": "https://feeds.content.dowjones.io/public/rss/WSJcomUSBusiness"
+  },
+  {
+    "Market": "USA",
+    "Category": "Opinion",
+    "Source Symbol": "WSJ",
+    "Website name": "WSJ - Opinion",
+    "URL": "https://feeds.content.dowjones.io/public/rss/RSSOpinion"
+  },
+  {
+    "Market": "USA",
+    "Category": "Politics",
+    "Source Symbol": "WSJ",
+    "Website name": "WSJ - Politics",
+    "URL": "https://feeds.content.dowjones.io/public/rss/socialpoliticsfeed"
+  },
+  {
+    "Market": "USA",
+    "Category": "Top News",
+    "Source Symbol": "CNB",
+    "Website name": "CNBC - Top News & Analysis",
+    "URL": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114"
+  },
+  {
+    "Market": "USA",
+    "Category": "Finance",
+    "Source Symbol": "CNB",
+    "Website name": "CNBC - Finance",
+    "URL": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664"
+  },
+  {
+    "Market": "USA",
+    "Category": "News",
+    "Source Symbol": "CNB",
+    "Website name": "CNBC - US News",
+    "URL": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=15837362"
+  },
+  {
+    "Market": "USA",
+    "Category": "Earnings",
+    "Source Symbol": "CNB",
+    "Website name": "CNBC - Earnings",
+    "URL": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=15839135"
+  },
+  {
+    "Market": "USA",
+    "Category": "Market",
+    "Source Symbol": "DOW",
+    "Website name": "DOW Jones - Market",
+    "URL": "https://feeds.content.dowjones.io/public/rss/mw_marketpulse"
+  },
+  {
+    "Market": "USA",
+    "Category": "Top News",
+    "Source Symbol": "DOW",
+    "Website name": "DOW Jones - Top Stories",
+    "URL": "https://feeds.content.dowjones.io/public/rss/mw_topstories"
+  },
+  {
+    "Market": "USA",
+    "Category": "Breaking News",
+    "Source Symbol": "DOW",
+    "Website name": "Dow Jones - Breaking News",
+    "URL": "https://feeds.content.dowjones.io/public/rss/mw_bulletins"
+  },
+  {
+    "Market": "USA",
+    "Category": "Headlines",
+    "Source Symbol": "DOW",
+    "Website name": "DOW Jones - Headlines",
+    "URL": "https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines"
+  },
+  {
+    "Market": "USA",
+    "Category": "Top News",
+    "Source Symbol": "MW",
+    "Website name": "MarketWatch - Top Stories",
+    "URL": "http://feeds.marketwatch.com/marketwatch/topstories/"
+  },
+  {
+    "Market": "USA",
+    "Category": "Finance",
+    "Source Symbol": "YAH",
+    "Website name": "Yahoo Finance - Home",
+    "URL": "https://finance.yahoo.com/rss/"
+  },
+  {
+    "Market": "USA",
+    "Category": "Finance",
+    "Source Symbol": "YAH",
+    "Website name": "Yahoo Finance",
+    "URL": "https://finance.yahoo.com/rss/finance"
+  },
+  {
+    "Market": "USA",
+    "Category": "Latest Filings",
+    "Source Symbol": "SEC",
+    "Website name": "SEC - Latest Filings",
+    "URL": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=&company=&dateb=&owner=include&start=0&count=100&output=atom"
+  },
+  {
+    "Market": "USA",
+    "Category": "Top News",
+    "Source Symbol": "FT",
+    "Website name": "Financial Times",
+    "URL": "https://www.ft.com/rss/home"
+  },
+  {
+    "Market": "UK/Europe",
+    "Category": "World News",
+    "Source Symbol": "FT",
+    "Website name": "Financial Times - World News",
+    "URL": "https://www.ft.com/rss/world"
+  },
+  {
+    "Market": "UK/Europe",
+    "Category": "Companies",
+    "Source Symbol": "FT",
+    "Website name": "Financial Times - Companies",
+    "URL": "https://www.ft.com/rss/companies"
+  },
+  {
+    "Market": "UK/Europe",
+    "Category": "Markets",
+    "Source Symbol": "FT",
+    "Website name": "Financial Times - Markets",
+    "URL": "https://www.ft.com/rss/markets"
+  },
+  {
+    "Market": "UK/Europe",
+    "Category": "Finance",
+    "Source Symbol": "ECO",
+    "Website name": "The Economist - Business & Finance",
+    "URL": "https://www.economist.com/finance-and-economics/rss.xml"
+  },
+  {
+    "Market": "UK/Europe",
+    "Category": "Top News",
+    "Source Symbol": "ECO",
+    "Website name": "The Economist - Full content feed",
+    "URL": "https://www.economist.com/rss.xml"
+  },
+  {
+    "Market": "UK/Europe",
+    "Category": "Business",
+    "Source Symbol": "BBC",
+    "Website name": "BBC News - Business",
+    "URL": "http://feeds.bbci.co.uk/news/business/rss.xml"
+  },
+  {
+    "Market": "Asia",
+    "Category": "Top News",
+    "Source Symbol": "NIK",
+    "Website name": "Nikkei Asia - Top Stories",
+    "URL": "https://asia.nikkei.com/rss/feed/nar"
+  },
+  {
+    "Market": "Asia",
+    "Category": "News",
+    "Source Symbol": "CAI",
+    "Website name": "Caixin Global - All Stories",
+    "URL": "http://www.caixinglobal.com/rss/"
+  },
+  {
+    "Market": "USA",
+    "Category": "Earnings",
+    "Source Symbol": "NDX",
+    "Website name": "Nasdaq - Earnings",
+    "URL": "https://www.nasdaq.com/feed/rssoutbound?category=Earnings"
+  },
+  {
+    "Market": "USA",
+    "Category": "IPO",
+    "Source Symbol": "NDX",
+    "Website name": "Nasdaq - IPO",
+    "URL": "https://www.nasdaq.com/feed/rssoutbound?category=IPOs"
+  },
+  {
+    "Market": "USA",
+    "Category": "Fintech",
+    "Source Symbol": "NDX",
+    "Website name": "Nasdaq - Fintech",
+    "URL": "https://www.nasdaq.com/feed/rssoutbound?category=FinTech"
+  },
+  {
+    "Market": "USA",
+    "Category": "Stocks",
+    "Source Symbol": "NDX",
+    "Website name": "Nasdaq - Stocks",
+    "URL": "https://www.nasdaq.com/feed/rssoutbound?category=Stocks"
+  }
+]

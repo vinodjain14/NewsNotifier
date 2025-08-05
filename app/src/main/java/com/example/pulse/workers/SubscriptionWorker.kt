@@ -1,80 +1,61 @@
 package com.example.pulse.workers
 
 import android.content.Context
+import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.example.pulse.data.Subscription
-import com.example.pulse.data.SubscriptionType
 import com.example.pulse.utils.DataFetcher
 import com.example.pulse.utils.NotificationHelper
-import com.example.pulse.utils.SubscriptionManager
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.TimeUnit
+import kotlin.random.Random
 
-/**
- * A WorkManager worker that periodically fetches data for active subscriptions
- * and shows notifications for new content.
- */
 class SubscriptionWorker(
     appContext: Context,
     workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
 
-    private val subscriptionManager = SubscriptionManager(appContext)
-    private val dataFetcher = DataFetcher // DataFetcher is an object, no need to instantiate
-    private val notificationIdCounter = AtomicInteger(0) // Simple counter for unique notification IDs
-
     override suspend fun doWork(): Result {
-        return withContext(Dispatchers.IO) {
-            try {
-                // *** FIX: Get subscriptions from the flow's current value ***
-                val subscriptions = subscriptionManager.subscriptionsFlow.value
+        Log.d("SubscriptionWorker", "Worker started.")
+        try {
+            val allNewNotifications = DataFetcher.fetchAllFeeds()
 
-                if (subscriptions.isEmpty()) {
-                    // No subscriptions, so nothing to do. Success.
-                    return@withContext Result.success()
-                }
+            if (allNewNotifications.isNotEmpty()) {
+                Log.d("SubscriptionWorker", "Found ${allNewNotifications.size} new notifications.")
+                // Add all new notifications to the central helper so they appear in the app's list
+                NotificationHelper.addNotifications(allNewNotifications)
 
-                subscriptions.forEach { subscription: Subscription ->
-                    when (subscription.type) {
-                        SubscriptionType.RSS_FEED -> {
-                            val newArticles = dataFetcher.fetchRssFeed(subscription.sourceUrl)
-                            newArticles.forEach { article ->
-                                // Show notification for each new article
-                                NotificationHelper.showNotification(
-                                    applicationContext,
-                                    "New Article from ${subscription.name}",
-                                    article.title,
-                                    notificationIdCounter.incrementAndGet(),
-                                    sourceName = subscription.name,
-                                    isBreaking = article.isBreaking,
-                                    isNew = article.isNew
-                                )
-                            }
-                        }
-                        SubscriptionType.TWITTER -> {
-                            val newTweets = dataFetcher.fetchTweets(subscription.sourceUrl)
-                            newTweets.forEach { tweet ->
-                                // Show notification for each new tweet
-                                NotificationHelper.showNotification(
-                                    applicationContext,
-                                    "New Tweet from @${subscription.name}",
-                                    tweet.text,
-                                    notificationIdCounter.incrementAndGet(),
-                                    sourceName = subscription.name,
-                                    isBreaking = false,
-                                    isNew = true
-                                )
-                            }
-                        }
-                    }
+                // --- FILTER FOR PUSH NOTIFICATIONS ---
+                val oneHourInMillis = TimeUnit.HOURS.toMillis(1)
+                val currentTime = System.currentTimeMillis()
+
+                val recentNotifications = allNewNotifications.filter {
+                    (currentTime - it.timestamp) < oneHourInMillis
                 }
-                Result.success()
-            } catch (e: Exception) {
-                e.printStackTrace()
-                Result.retry() // Retry if there's an error
+                // --- END FILTER ---
+
+                // Only show push notifications for items published in the last hour
+                if (recentNotifications.isNotEmpty()) {
+                    Log.d("SubscriptionWorker", "Found ${recentNotifications.size} recent notifications to notify about.")
+                    // Show a notification for the most recent item
+                    val notificationToShow = recentNotifications.first()
+                    NotificationHelper.showNotification(
+                        context = applicationContext,
+                        title = notificationToShow.title,
+                        message = notificationToShow.message,
+                        notificationId = Random.nextInt(),
+                        sourceName = notificationToShow.sourceName
+                    )
+                } else {
+                    Log.d("SubscriptionWorker", "No recent (last 1 hour) notifications found to send a push notification for.")
+                }
+            } else {
+                Log.d("SubscriptionWorker", "No new notifications found.")
             }
+
+            return Result.success()
+        } catch (e: Exception) {
+            Log.e("SubscriptionWorker", "Error in worker: ${e.message}", e)
+            return Result.failure()
         }
     }
 }
