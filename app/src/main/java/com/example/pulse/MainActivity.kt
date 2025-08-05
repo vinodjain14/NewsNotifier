@@ -27,13 +27,14 @@ import com.example.pulse.workers.SubscriptionWorker
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.messaging.ktx.messaging
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 enum class Screen {
     Welcome,
     ChooseAccount,
-    Selection,
+    PulseMarket,
     Manage,
     MyProfile,
     AllNotifications,
@@ -77,12 +78,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // --- Initialization ---
         subscriptionManager = SubscriptionManager(this)
         workManager = WorkManager.getInstance(this)
         authManager = AuthManager(this)
         themeManager = ThemeManager(this)
         readingListManager = ReadingListManager(this)
-
         NotificationHelper.init(this)
         DataFetcher.init(this)
 
@@ -115,25 +116,35 @@ class MainActivity : ComponentActivity() {
                     val snackbarHostState = remember { SnackbarHostState() }
                     val scope = rememberCoroutineScope()
                     val loggedInUser: FirebaseUser? by authManager.loggedInUserFlow.collectAsState()
-                    val isLoggedIn = loggedInUser != null
 
+                    // --- Navigation State ---
                     var currentScreen: Screen by remember {
                         mutableStateOf(
                             when {
                                 initialNotificationId != null -> Screen.AllNotifications
-                                isLoggedIn -> Screen.Selection
+                                loggedInUser != null -> Screen.PulseMarket
                                 else -> Screen.Welcome
                             }
                         )
                     }
 
+                    // --- Login and Initial Data Fetch Effect ---
                     LaunchedEffect(loggedInUser) {
-                        if (loggedInUser != null && currentScreen == Screen.Welcome) {
-                            currentScreen = Screen.Selection
-                            scope.launch {
-                                snackbarHostState.showSnackbar(
-                                    "Signed in as ${loggedInUser?.displayName ?: loggedInUser?.email}"
-                                )
+                        val user = loggedInUser
+                        if (user != null) {
+                            // Pre-fetch notifications in the background
+                            scope.launch(Dispatchers.IO) {
+                                val notifications = DataFetcher.fetchAllFeeds()
+                                NotificationHelper.addNotifications(notifications)
+                            }
+                            // Navigate to the main screen if coming from the welcome screen
+                            if (currentScreen == Screen.Welcome) {
+                                currentScreen = Screen.PulseMarket
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        "Signed in as ${user.displayName ?: user.email}"
+                                    )
+                                }
                             }
                         }
                     }
@@ -142,6 +153,7 @@ class MainActivity : ComponentActivity() {
                         scheduleSubscriptionWorker()
                     }
 
+                    // --- Screen Routing ---
                     when (currentScreen) {
                         Screen.Welcome -> WelcomeScreen(
                             onSignInWithGoogle = {
@@ -149,43 +161,32 @@ class MainActivity : ComponentActivity() {
                                 googleSignInLauncher.launch(signInIntent)
                             },
                             onNavigateToChooseAccount = { currentScreen = Screen.ChooseAccount },
-                            onNavigateToSelection = { currentScreen = Screen.Selection },
+                            onNavigateToSelection = { currentScreen = Screen.PulseMarket },
                             snackbarHostState = snackbarHostState
                         )
                         Screen.ChooseAccount -> ChooseAccountScreen(
                             authManager = authManager,
-                            onNavigateToSelection = { currentScreen = Screen.Selection },
+                            onNavigateToSelection = { currentScreen = Screen.PulseMarket },
                             onNavigateBack = { currentScreen = Screen.Welcome },
                             snackbarHostState = snackbarHostState
                         )
-                        Screen.Selection -> SubscriptionSelectionScreen(
-                            subscriptionManager = subscriptionManager,
-                            currentActiveSubscriptions = subscriptionManager.subscriptionsFlow.collectAsState().value,
-                            onSubscriptionsChanged = updateSubscriptionsAndScheduleWorker,
-                            onNavigateToManage = { currentScreen = Screen.Manage },
-                            onNavigateToWelcome = { currentScreen = Screen.Welcome },
-                            isLoggedIn = isLoggedIn,
-                            onLogout = {
-                                authManager.logoutUser()
-                                currentScreen = Screen.LoggedOut
-                                scope.launch { snackbarHostState.showSnackbar("Logged out successfully.") }
-                            },
-                            onNavigateToProfile = { currentScreen = Screen.MyProfile },
-                            onNavigateToSearch = { currentScreen = Screen.Search },
-                            snackbarHostState = snackbarHostState
+                        Screen.PulseMarket -> PulseMarketScreen(
+                            onNavigateToAllNotifications = { currentScreen = Screen.AllNotifications },
+                            onNavigateToManageSubscriptions = { currentScreen = Screen.Manage },
+                            onNavigateToMyProfile = { currentScreen = Screen.MyProfile }
                         )
                         Screen.Manage -> ManageSubscriptionsScreen(
                             subscriptionManager = subscriptionManager,
                             onSubscriptionsChanged = updateSubscriptionsAndScheduleWorker,
-                            onNavigateToSelection = { currentScreen = Screen.Selection },
+                            onNavigateToSelection = { currentScreen = Screen.PulseMarket },
                             onNavigateToAllNotifications = { currentScreen = Screen.AllNotifications },
                             onNavigateToReadingList = { currentScreen = Screen.ReadingList },
                             snackbarHostState = snackbarHostState
                         )
                         Screen.MyProfile -> MyProfileScreen(
                             authManager = authManager,
-                            onNavigateToSelection = { currentScreen = Screen.Selection },
-                            onNavigateBack = { currentScreen = Screen.Selection },
+                            onNavigateToSelection = { currentScreen = Screen.PulseMarket },
+                            onNavigateBack = { currentScreen = Screen.PulseMarket },
                             onLogout = { currentScreen = Screen.LoggedOut },
                             onNavigateToAccessibility = { currentScreen = Screen.AccessibilitySettings },
                             onNavigateToBackupRestore = { currentScreen = Screen.BackupRestore },
@@ -193,7 +194,7 @@ class MainActivity : ComponentActivity() {
                         )
                         Screen.AllNotifications -> {
                             AllNotificationsScreen(
-                                onNavigateBack = { currentScreen = Screen.Manage },
+                                onNavigateBack = { currentScreen = Screen.PulseMarket },
                                 snackbarHostState = snackbarHostState,
                                 notificationIdToFocus = initialNotificationId,
                                 onNavigateToReadingList = { currentScreen = Screen.ReadingList },
@@ -207,11 +208,7 @@ class MainActivity : ComponentActivity() {
                         Screen.ReadingList -> ReadingListScreen(
                             readingListManager = readingListManager,
                             onNavigateBack = {
-                                currentScreen = if (initialNotificationId != null) {
-                                    Screen.AllNotifications
-                                } else {
-                                    Screen.Manage
-                                }
+                                currentScreen = Screen.PulseMarket
                             },
                             snackbarHostState = snackbarHostState
                         )
@@ -229,13 +226,13 @@ class MainActivity : ComponentActivity() {
                             onNavigateToWelcome = { currentScreen = Screen.Welcome }
                         )
                         Screen.Search -> SearchScreen(
-                            onNavigateBack = { currentScreen = Screen.Selection },
+                            onNavigateBack = { currentScreen = Screen.PulseMarket },
                             onAddSubscription = { subscription ->
                                 subscriptionManager.addSubscription(subscription)
                                 scope.launch {
                                     snackbarHostState.showSnackbar("Added ${subscription.name}")
                                 }
-                                currentScreen = Screen.Selection
+                                currentScreen = Screen.PulseMarket
                             }
                         )
                     }
@@ -256,12 +253,12 @@ class MainActivity : ComponentActivity() {
 
     private fun scheduleSubscriptionWorker() {
         val workName = "SubscriptionCheckWork"
-        val periodicWorkRequest = PeriodicWorkRequestBuilder<SubscriptionWorker>(5, TimeUnit.MINUTES)
+        val periodicWorkRequest = PeriodicWorkRequestBuilder<SubscriptionWorker>(15, TimeUnit.MINUTES)
             .addTag(workName)
             .build()
         workManager.enqueueUniquePeriodicWork(
             workName,
-            ExistingPeriodicWorkPolicy.REPLACE,
+            ExistingPeriodicWorkPolicy.KEEP,
             periodicWorkRequest
         )
     }
