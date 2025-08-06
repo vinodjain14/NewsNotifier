@@ -1,21 +1,19 @@
 package com.example.pulse.utils
 
 import android.content.Context
+import android.util.Log
 import com.example.pulse.data.Subscription
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.io.File
 
-/**
- * Manages user subscriptions using SharedPreferences for local storage.
- */
 class SubscriptionManager(private val context: Context) {
 
     private val gson = Gson()
-    private val prefs = context.getSharedPreferences("subscription_prefs", Context.MODE_PRIVATE)
-    private val subscriptionsKey = "subscriptions"
+    private val subscriptionsFile = File(context.filesDir, "subscriptions.json")
 
     private val _subscriptionsFlow = MutableStateFlow<List<Subscription>>(emptyList())
     val subscriptionsFlow: StateFlow<List<Subscription>> = _subscriptionsFlow.asStateFlow()
@@ -25,28 +23,38 @@ class SubscriptionManager(private val context: Context) {
     }
 
     private fun loadSubscriptions() {
-        val json = prefs.getString(subscriptionsKey, null)
-        val type = object : TypeToken<List<Subscription>>() {}.type
-        _subscriptionsFlow.value = gson.fromJson(json, type) ?: emptyList()
+        if (!subscriptionsFile.exists()) {
+            _subscriptionsFlow.value = emptyList() // Start with an empty list if no file
+            return
+        }
+        try {
+            val json = subscriptionsFile.readText()
+            val type = object : TypeToken<List<Subscription>>() {}.type
+            val subscriptions: List<Subscription> = gson.fromJson(json, type) ?: emptyList()
+            _subscriptionsFlow.value = subscriptions
+        } catch (e: Exception) {
+            Log.e("SubscriptionManager", "Error loading subscriptions", e)
+            _subscriptionsFlow.value = emptyList()
+        }
     }
 
     private fun saveSubscriptions(subscriptions: List<Subscription>) {
-        val json = gson.toJson(subscriptions)
-        prefs.edit().putString(subscriptionsKey, json).apply()
-        _subscriptionsFlow.value = subscriptions
+        try {
+            val json = gson.toJson(subscriptions)
+            subscriptionsFile.writeText(json)
+            _subscriptionsFlow.value = subscriptions
+        } catch (e: Exception) {
+            Log.e("SubscriptionManager", "Error saving subscriptions", e)
+        }
     }
 
-    /**
-     * Overwrites the user's current subscriptions with a new list.
-     * @param newSubscriptions The complete new list of subscriptions.
-     */
-    fun overwriteSubscriptions(newSubscriptions: List<Subscription>) {
-        saveSubscriptions(newSubscriptions)
+    fun getSubscriptions(): List<Subscription> {
+        return _subscriptionsFlow.value
     }
 
     fun addSubscription(subscription: Subscription) {
         val currentSubscriptions = _subscriptionsFlow.value.toMutableList()
-        if (currentSubscriptions.none { it.id == subscription.id }) {
+        if (currentSubscriptions.none { it.sourceUrl == subscription.sourceUrl }) {
             currentSubscriptions.add(subscription)
             saveSubscriptions(currentSubscriptions)
         }
@@ -54,7 +62,11 @@ class SubscriptionManager(private val context: Context) {
 
     fun removeSubscription(subscriptionId: String) {
         val currentSubscriptions = _subscriptionsFlow.value.toMutableList()
-        val updatedSubscriptions = currentSubscriptions.filterNot { it.id == subscriptionId }
-        saveSubscriptions(updatedSubscriptions)
+        currentSubscriptions.removeAll { it.id == subscriptionId }
+        saveSubscriptions(currentSubscriptions)
+    }
+
+    fun overwriteSubscriptions(subscriptions: List<Subscription>) {
+        saveSubscriptions(subscriptions)
     }
 }

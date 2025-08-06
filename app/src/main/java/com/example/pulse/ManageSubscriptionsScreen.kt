@@ -6,19 +6,28 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.pulse.data.MarketFeed
+import com.example.pulse.data.Subscription
+import com.example.pulse.data.SubscriptionType
 import com.example.pulse.ui.components.*
 import com.example.pulse.ui.theme.*
 import com.example.pulse.utils.SubscriptionManager
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,8 +39,31 @@ fun ManageSubscriptionsScreen(
     onNavigateToReadingList: () -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val subscriptions by subscriptionManager.subscriptionsFlow.collectAsState()
+
+    // Load market feeds from JSON
+    val marketList: List<MarketFeed> = remember {
+        val jsonString = context.assets.open("Finance_Market_RSS_Feeds.json").bufferedReader().use { it.readText() }
+        val marketListType = object : TypeToken<List<MarketFeed>>() {}.type
+        Gson().fromJson(jsonString, marketListType)
+    }
+
+    // Get all available categories
+    val categories = remember { marketList.map { it.category }.distinct().sorted() }
+
+    // Get currently subscribed categories
+    val currentSubscribedCategories = remember(subscriptions) {
+        subscriptions.map { it.category }.distinct()
+    }
+
+    // State for selected categories
+    val selectedCategories = remember(currentSubscribedCategories) {
+        mutableStateListOf<String>().apply {
+            addAll(currentSubscribedCategories)
+        }
+    }
 
     BackHandler {
         onNavigateToSelection()
@@ -73,139 +105,152 @@ fun ManageSubscriptionsScreen(
                 )
             }
         ) { paddingValues ->
-            LazyColumn(
+            Column(
                 modifier = Modifier
                     .padding(paddingValues)
                     .fillMaxSize()
                     .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(vertical = 16.dp)
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                item {
-                    ElevatedModernCard(
-                        modifier = Modifier.fillMaxWidth()
+                // Header section
+                ElevatedModernCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Column(
-                            modifier = Modifier.padding(20.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Text(
-                                text = "Subscription Overview",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
-                            )
+                        Text(
+                            text = "Choose Your Interests",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
 
-                            Text(
-                                text = "You have ${subscriptions.size} active subscription${if (subscriptions.size != 1) "s" else ""}",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Text(
+                            text = "Select the categories you want to receive notifications from",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Text(
+                            text = "${selectedCategories.size} of ${categories.size} categories selected",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Primary
+                        )
                     }
                 }
 
-                if (subscriptions.isEmpty()) {
-                    item {
-                        ElevatedModernCard(
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(32.dp),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                Text(
-                                    text = "No Subscriptions",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-
-                                Text(
-                                    text = "Add some news sources to get started with notifications.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-
-                                AnimatedGradientButton(
-                                    text = "Add Subscriptions",
-                                    onClick = {
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar("Subscription management coming soon!")
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    items(subscriptions) { subscription ->
-                        ElevatedModernCard(
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = subscription.name,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-
-                                        Text(
-                                            text = subscription.type.name.replace("_", " ").lowercase()
-                                                .replaceFirstChar { it.uppercase() },
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-
-                                        Text(
-                                            text = subscription.sourceUrl,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    AnimatedOutlinedButton(
-                                        text = "Remove",
-                                        onClick = {
-                                            subscriptionManager.removeSubscription(subscription.id)
-                                            onSubscriptionsChanged()
-                                            scope.launch {
-                                                snackbarHostState.showSnackbar("Removed ${subscription.name}")
-                                            }
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        height = 40.dp,
-                                        borderColor = Error,
-                                        textColor = Error
-                                    )
-
-                                    AnimatedOutlinedButton(
-                                        text = "Settings",
-                                        onClick = {
-                                            scope.launch {
-                                                snackbarHostState.showSnackbar("Settings for ${subscription.name}")
-                                            }
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        height = 40.dp
-                                    )
+                // Categories list
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    items(categories) { category ->
+                        CategorySelectionCard(
+                            category = category,
+                            isSelected = selectedCategories.contains(category),
+                            onToggle = {
+                                if (selectedCategories.contains(category)) {
+                                    selectedCategories.remove(category)
+                                } else {
+                                    selectedCategories.add(category)
                                 }
                             }
-                        }
+                        )
                     }
                 }
+
+                // Save button
+                AnimatedGradientButton(
+                    text = "Save Changes",
+                    onClick = {
+                        // Create new subscriptions based on selected categories
+                        val newSubscriptions = marketList
+                            .filter { it.category in selectedCategories }
+                            .map { marketFeed ->
+                                Subscription(
+                                    id = UUID.randomUUID().toString(),
+                                    name = marketFeed.websiteName,
+                                    type = SubscriptionType.RSS_FEED,
+                                    sourceUrl = marketFeed.url,
+                                    market = marketFeed.market,
+                                    category = marketFeed.category
+                                )
+                            }
+
+                        // Update subscriptions
+                        subscriptionManager.overwriteSubscriptions(newSubscriptions)
+                        onSubscriptionsChanged()
+
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                "${selectedCategories.size} categories selected. Subscriptions updated!"
+                            )
+                        }
+                    },
+                    enabled = selectedCategories.isNotEmpty(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    icon = Icons.Default.Check
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun CategorySelectionCard(
+    category: String,
+    isSelected: Boolean,
+    onToggle: () -> Unit
+) {
+    ElevatedModernCard(
+        onClick = onToggle,
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = if (isSelected) {
+            Primary.copy(alpha = 0.1f)
+        } else {
+            MaterialTheme.colorScheme.surface
+        }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = category,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (isSelected) Primary else MaterialTheme.colorScheme.onSurface
+                )
+
+                Text(
+                    text = if (isSelected) "Selected" else "Tap to select",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isSelected)
+                        Primary.copy(alpha = 0.7f)
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Checkbox(
+                checked = isSelected,
+                onCheckedChange = { onToggle() },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = Primary,
+                    uncheckedColor = MaterialTheme.colorScheme.outline
+                )
+            )
         }
     }
 }

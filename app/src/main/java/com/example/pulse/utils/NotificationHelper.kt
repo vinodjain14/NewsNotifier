@@ -14,40 +14,79 @@ import com.example.pulse.data.NotificationItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 
 object NotificationHelper {
 
-    private const val CHANNEL_ID = "pulse_notifications_channel"
-    private const val CHANNEL_NAME = "Pulse Notifications"
-    const val NOTIFICATION_ID_EXTRA = "notification_id_extra"
+    const val CHANNEL_ID = "pulse_notifications"
+    const val NOTIFICATION_ID_EXTRA = "notification_id"
     private const val TAG = "NotificationHelper"
+
+    private lateinit var context: Context
+    private lateinit var notificationManager: NotificationManager
 
     private val _notificationsFlow = MutableStateFlow<List<NotificationItem>>(emptyList())
     val notificationsFlow: StateFlow<List<NotificationItem>> = _notificationsFlow.asStateFlow()
 
-    private lateinit var applicationContext: Context
-
-    fun init(context: Context) {
-        if (!::applicationContext.isInitialized) {
-            applicationContext = context.applicationContext
-            createNotificationChannel()
-        }
+    fun init(appContext: Context) {
+        context = appContext
+        notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        createNotificationChannel()
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                CHANNEL_NAME,
+                "Pulse Notifications",
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
-                description = "Channel for Pulse news and updates"
+                description = "News and market updates from Pulse"
+                enableVibration(true)
+                setShowBadge(true)
             }
-            val notificationManager: NotificationManager =
-                applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
+    }
+
+    fun addNotifications(notifications: List<NotificationItem>) {
+        val currentNotifications = _notificationsFlow.value.toMutableList()
+
+        // Add only new notifications (avoid duplicates)
+        val newNotifications = notifications.filter { newNotif ->
+            currentNotifications.none { existingNotif -> existingNotif.id == newNotif.id }
+        }
+
+        currentNotifications.addAll(0, newNotifications) // Add to beginning
+        _notificationsFlow.value = currentNotifications.sortedByDescending { it.timestamp }
+
+        Log.d(TAG, "Added ${newNotifications.size} new notifications. Total: ${currentNotifications.size}")
+    }
+
+    fun markNotificationAsRead(notificationId: String) {
+        val currentNotifications = _notificationsFlow.value.toMutableList()
+        val index = currentNotifications.indexOfFirst { it.id == notificationId }
+
+        if (index != -1) {
+            currentNotifications[index] = currentNotifications[index].markAsRead()
+            _notificationsFlow.value = currentNotifications
+            Log.d(TAG, "Marked notification as read: $notificationId")
+        }
+    }
+
+    fun toggleNotificationSaved(notificationId: String) {
+        val currentNotifications = _notificationsFlow.value.toMutableList()
+        val index = currentNotifications.indexOfFirst { it.id == notificationId }
+
+        if (index != -1) {
+            currentNotifications[index] = currentNotifications[index].toggleSaved()
+            _notificationsFlow.value = currentNotifications
+            Log.d(TAG, "Toggled saved status for notification: $notificationId")
+        }
+    }
+
+    fun clearAllNotifications() {
+        _notificationsFlow.value = emptyList()
+        Log.d(TAG, "Cleared all notifications")
     }
 
     fun showNotification(
@@ -57,55 +96,49 @@ object NotificationHelper {
         notificationId: Int,
         sourceName: String
     ) {
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            putExtra(NOTIFICATION_ID_EXTRA, notificationId.toString())
-        }
-
-        val pendingIntent: PendingIntent = PendingIntent.getActivity(
-            context,
-            notificationId,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        val notificationItem = NotificationItem(
+            id = notificationId.toString(),
+            title = title,
+            message = message,
+            sourceName = sourceName,
+            market = "Cloud",
+            category = "Push Notifications",
+            timestamp = System.currentTimeMillis(),
+            isRead = false,
+            isSaved = false,
+            isBreaking = false,
+            isNew = true
         )
 
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.pulse_logo)
-            .setContentTitle(title)
-            .setContentText(message)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(pendingIntent)
+        // Add to internal list
+        addNotifications(listOf(notificationItem))
+
+        // Show system notification
+        showSystemNotification(notificationItem)
+    }
+
+    fun showSystemNotification(notificationItem: NotificationItem) {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            putExtra(NOTIFICATION_ID_EXTRA, notificationItem.id)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            notificationItem.id.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setContentTitle(notificationItem.title)
+            .setContentText(notificationItem.message)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .setPriority(if (notificationItem.isBreaking) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
+            .build()
 
-        val notificationManager =
-            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(notificationId, builder.build())
-    }
-
-    fun addNotifications(newNotifications: List<NotificationItem>) {
-        _notificationsFlow.update { currentNotifications ->
-            val existingIds = currentNotifications.map { it.id }.toSet()
-            val uniqueNewNotifications = newNotifications.filterNot { existingIds.contains(it.id) }
-            (uniqueNewNotifications + currentNotifications).sortedByDescending { it.timestamp }
-        }
-        Log.d(TAG, "Added ${newNotifications.size} notifications.")
-    }
-
-    fun markAsRead(notificationId: String) {
-        _notificationsFlow.update { notifications ->
-            notifications.map {
-                if (it.id == notificationId) it.copy(isRead = true) else it
-            }
-        }
-    }
-
-    fun deleteNotification(notificationId: String) {
-        _notificationsFlow.update { notifications ->
-            notifications.filterNot { it.id == notificationId }
-        }
-    }
-
-    fun clearAllNotifications() {
-        _notificationsFlow.value = emptyList()
+        notificationManager.notify(notificationItem.id.hashCode(), notification)
     }
 }

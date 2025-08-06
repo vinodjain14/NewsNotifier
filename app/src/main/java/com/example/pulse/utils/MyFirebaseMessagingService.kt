@@ -27,7 +27,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         Log.d("FCM", "From: ${remoteMessage.from}")
 
         // Check if the message contains a notification payload.
-        remoteMessage.notification?.let { notification ->
+        remoteMessage.notification?.let { notification: RemoteMessage.Notification ->
             Log.d("FCM", "Message Notification Body: ${notification.body}")
 
             // Use your existing NotificationHelper to display the notification.
@@ -38,6 +38,24 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 message = notification.body ?: "",
                 notificationId = Random.nextInt(), // Generate a random ID for the notification
                 sourceName = "Cloud Service" // You can enhance this later if needed
+            )
+        }
+
+        // Check if message contains a data payload
+        if (remoteMessage.data.isNotEmpty()) {
+            Log.d("FCM", "Message data payload: ${remoteMessage.data}")
+
+            // Handle data payload if needed
+            val title = remoteMessage.data["title"] ?: "New Notification"
+            val body = remoteMessage.data["body"] ?: ""
+            val source = remoteMessage.data["source"] ?: "Cloud Service"
+
+            NotificationHelper.showNotification(
+                context = applicationContext,
+                title = title,
+                message = body,
+                notificationId = Random.nextInt(),
+                sourceName = source
             )
         }
     }
