@@ -1,7 +1,7 @@
 [
   {
     "Market": "USA",
-    "Category": "Top News",
+    "Category": "Finance",
     "Source Symbol": "RTR",
     "Website name": "Reuters - Top News",
     "URL": "https://rss.app/feeds/MZuVvrsORe1YXdYc.xml"
@@ -36,7 +36,7 @@
   },
   {
     "Market": "USA",
-    "Category": "Top News",
+    "Category": "Finance",
     "Source Symbol": "CNB",
     "Website name": "CNBC - Top News & Analysis",
     "URL": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114"
@@ -50,7 +50,7 @@
   },
   {
     "Market": "USA",
-    "Category": "News",
+    "Category": "Market",
     "Source Symbol": "CNB",
     "Website name": "CNBC - US News",
     "URL": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=15837362"
@@ -71,14 +71,14 @@
   },
   {
     "Market": "USA",
-    "Category": "Top News",
+    "Category": "Finance",
     "Source Symbol": "DOW",
     "Website name": "DOW Jones - Top Stories",
     "URL": "https://feeds.content.dowjones.io/public/rss/mw_topstories"
   },
   {
     "Market": "USA",
-    "Category": "Breaking News",
+    "Category": "Breaking",
     "Source Symbol": "DOW",
     "Website name": "Dow Jones - Breaking News",
     "URL": "https://feeds.content.dowjones.io/public/rss/mw_bulletins"
@@ -92,7 +92,7 @@
   },
   {
     "Market": "USA",
-    "Category": "Top News",
+    "Category": "Finance",
     "Source Symbol": "MW",
     "Website name": "MarketWatch - Top Stories",
     "URL": "http://feeds.marketwatch.com/marketwatch/topstories/"
@@ -113,14 +113,14 @@
   },
   {
     "Market": "USA",
-    "Category": "Latest Filings",
+    "Category": "SEC Filings",
     "Source Symbol": "SEC",
     "Website name": "SEC - Latest Filings",
     "URL": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=&company=&dateb=&owner=include&start=0&count=100&output=atom"
   },
   {
     "Market": "USA",
-    "Category": "Top News",
+    "Category": "Finance",
     "Source Symbol": "FT",
     "Website name": "Financial Times",
     "URL": "https://www.ft.com/rss/home"
@@ -141,7 +141,7 @@
   },
   {
     "Market": "UK/Europe",
-    "Category": "Markets",
+    "Category": "Market",
     "Source Symbol": "FT",
     "Website name": "Financial Times - Markets",
     "URL": "https://www.ft.com/rss/markets"
@@ -155,7 +155,7 @@
   },
   {
     "Market": "UK/Europe",
-    "Category": "Top News",
+    "Category": "Finance",
     "Source Symbol": "ECO",
     "Website name": "The Economist - Full content feed",
     "URL": "https://www.economist.com/rss.xml"
@@ -169,7 +169,7 @@
   },
   {
     "Market": "Asia",
-    "Category": "Top News",
+    "Category": "Finance",
     "Source Symbol": "NIK",
     "Website name": "Nikkei Asia - Top Stories",
     "URL": "https://asia.nikkei.com/rss/feed/nar"

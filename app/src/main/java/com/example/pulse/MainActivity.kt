@@ -20,6 +20,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.example.pulse.data.NotificationItem
 import com.example.pulse.ui.theme.AppTypography
 import com.example.pulse.ui.theme.PulseTheme
 import com.example.pulse.utils.*
@@ -33,12 +34,14 @@ import java.util.concurrent.TimeUnit
 
 enum class Screen {
     Welcome,
+    Onboarding,
     ChooseAccount,
     PulseMarket,
     Manage,
     MyProfile,
     AllNotifications,
     ReadingList,
+    NotificationDetail,
     AccessibilitySettings,
     BackupRestore,
     LoggedOut,
@@ -75,19 +78,32 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun isFirstTimeUser(): Boolean {
+        val prefs = getSharedPreferences("pulse_prefs", MODE_PRIVATE)
+        return prefs.getBoolean("is_first_time", true)
+    }
+
+    private fun setFirstTimeUser(isFirstTime: Boolean) {
+        val prefs = getSharedPreferences("pulse_prefs", MODE_PRIVATE)
+        with(prefs.edit()) {
+            putBoolean("is_first_time", isFirstTime)
+            apply()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // --- Initialization ---
         subscriptionManager = SubscriptionManager(this)
         workManager = WorkManager.getInstance(this)
         authManager = AuthManager(this)
         themeManager = ThemeManager(this)
         readingListManager = ReadingListManager(this)
         NotificationHelper.init(this)
-        DataFetcher.init(this)
+        DataFetcher.init(this, subscriptionManager)
 
         initialNotificationId = intent.getStringExtra(NotificationHelper.NOTIFICATION_ID_EXTRA)
+        val isFirstTime = isFirstTimeUser()
 
         askNotificationPermission()
 
@@ -117,29 +133,28 @@ class MainActivity : ComponentActivity() {
                     val scope = rememberCoroutineScope()
                     val loggedInUser: FirebaseUser? by authManager.loggedInUserFlow.collectAsState()
 
-                    // --- Navigation State ---
                     var currentScreen: Screen by remember {
                         mutableStateOf(
                             when {
                                 initialNotificationId != null -> Screen.AllNotifications
-                                loggedInUser != null -> Screen.PulseMarket
+                                loggedInUser != null -> if (isFirstTime) Screen.Onboarding else Screen.AllNotifications
                                 else -> Screen.Welcome
                             }
                         )
                     }
 
-                    // --- Login and Initial Data Fetch Effect ---
+                    // State to hold the selected notification for detail screen
+                    var selectedNotification by remember { mutableStateOf<NotificationItem?>(null) }
+
                     LaunchedEffect(loggedInUser) {
                         val user = loggedInUser
                         if (user != null) {
-                            // Pre-fetch notifications in the background
                             scope.launch(Dispatchers.IO) {
                                 val notifications = DataFetcher.fetchAllFeeds()
                                 NotificationHelper.addNotifications(notifications)
                             }
-                            // Navigate to the main screen if coming from the welcome screen
                             if (currentScreen == Screen.Welcome) {
-                                currentScreen = Screen.PulseMarket
+                                currentScreen = if (isFirstTime) Screen.Onboarding else Screen.AllNotifications
                                 scope.launch {
                                     snackbarHostState.showSnackbar(
                                         "Signed in as ${user.displayName ?: user.email}"
@@ -153,7 +168,6 @@ class MainActivity : ComponentActivity() {
                         scheduleSubscriptionWorker()
                     }
 
-                    // --- Screen Routing ---
                     when (currentScreen) {
                         Screen.Welcome -> WelcomeScreen(
                             onSignInWithGoogle = {
@@ -161,12 +175,21 @@ class MainActivity : ComponentActivity() {
                                 googleSignInLauncher.launch(signInIntent)
                             },
                             onNavigateToChooseAccount = { currentScreen = Screen.ChooseAccount },
-                            onNavigateToSelection = { currentScreen = Screen.PulseMarket },
+                            onNavigateToSelection = {
+                                currentScreen = if (isFirstTime) Screen.Onboarding else Screen.AllNotifications
+                            },
                             snackbarHostState = snackbarHostState
+                        )
+                        Screen.Onboarding -> OnboardingScreen(
+                            subscriptionManager = subscriptionManager,
+                            onOnboardingComplete = {
+                                setFirstTimeUser(false)
+                                currentScreen = Screen.AllNotifications
+                            }
                         )
                         Screen.ChooseAccount -> ChooseAccountScreen(
                             authManager = authManager,
-                            onNavigateToSelection = { currentScreen = Screen.PulseMarket },
+                            onNavigateToSelection = { currentScreen = Screen.AllNotifications },
                             onNavigateBack = { currentScreen = Screen.Welcome },
                             snackbarHostState = snackbarHostState
                         )
@@ -178,15 +201,15 @@ class MainActivity : ComponentActivity() {
                         Screen.Manage -> ManageSubscriptionsScreen(
                             subscriptionManager = subscriptionManager,
                             onSubscriptionsChanged = updateSubscriptionsAndScheduleWorker,
-                            onNavigateToSelection = { currentScreen = Screen.PulseMarket },
+                            onNavigateToSelection = { currentScreen = Screen.AllNotifications },
                             onNavigateToAllNotifications = { currentScreen = Screen.AllNotifications },
                             onNavigateToReadingList = { currentScreen = Screen.ReadingList },
                             snackbarHostState = snackbarHostState
                         )
                         Screen.MyProfile -> MyProfileScreen(
                             authManager = authManager,
-                            onNavigateToSelection = { currentScreen = Screen.PulseMarket },
-                            onNavigateBack = { currentScreen = Screen.PulseMarket },
+                            onNavigateToSelection = { currentScreen = Screen.AllNotifications },
+                            onNavigateBack = { currentScreen = Screen.AllNotifications },
                             onLogout = { currentScreen = Screen.LoggedOut },
                             onNavigateToAccessibility = { currentScreen = Screen.AccessibilitySettings },
                             onNavigateToBackupRestore = { currentScreen = Screen.BackupRestore },
@@ -194,10 +217,15 @@ class MainActivity : ComponentActivity() {
                         )
                         Screen.AllNotifications -> {
                             AllNotificationsScreen(
-                                onNavigateBack = { currentScreen = Screen.PulseMarket },
+                                onNavigateToManageSubscriptions = { currentScreen = Screen.Manage },
+                                onNavigateToMyProfile = { currentScreen = Screen.MyProfile },
+                                onNavigateToReadingList = { currentScreen = Screen.ReadingList },
+                                onNavigateToNotificationDetail = { notification ->
+                                    selectedNotification = notification
+                                    currentScreen = Screen.NotificationDetail
+                                },
                                 snackbarHostState = snackbarHostState,
                                 notificationIdToFocus = initialNotificationId,
-                                onNavigateToReadingList = { currentScreen = Screen.ReadingList },
                                 readingListManager = readingListManager,
                                 subscriptionManager = subscriptionManager
                             )
@@ -208,10 +236,28 @@ class MainActivity : ComponentActivity() {
                         Screen.ReadingList -> ReadingListScreen(
                             readingListManager = readingListManager,
                             onNavigateBack = {
-                                currentScreen = Screen.PulseMarket
+                                currentScreen = Screen.AllNotifications
+                            },
+                            onNavigateToNotificationDetail = { notification ->
+                                selectedNotification = notification
+                                currentScreen = Screen.NotificationDetail
                             },
                             snackbarHostState = snackbarHostState
                         )
+                        Screen.NotificationDetail -> {
+                            selectedNotification?.let { notification ->
+                                NotificationDetailScreen(
+                                    notification = notification,
+                                    readingListManager = readingListManager,
+                                    onNavigateBack = {
+                                        selectedNotification = null
+                                        currentScreen = Screen.AllNotifications
+                                    },
+                                    snackbarHostState = snackbarHostState,
+                                    sourceUrl = notification.sourceUrl
+                                )
+                            }
+                        }
                         Screen.AccessibilitySettings -> AccessibilitySettingsScreen(
                             themeManager = themeManager,
                             onNavigateBack = { currentScreen = Screen.MyProfile },
@@ -226,13 +272,13 @@ class MainActivity : ComponentActivity() {
                             onNavigateToWelcome = { currentScreen = Screen.Welcome }
                         )
                         Screen.Search -> SearchScreen(
-                            onNavigateBack = { currentScreen = Screen.PulseMarket },
+                            onNavigateBack = { currentScreen = Screen.AllNotifications },
                             onAddSubscription = { subscription ->
                                 subscriptionManager.addSubscription(subscription)
                                 scope.launch {
                                     snackbarHostState.showSnackbar("Added ${subscription.name}")
                                 }
-                                currentScreen = Screen.PulseMarket
+                                currentScreen = Screen.AllNotifications
                             }
                         )
                     }

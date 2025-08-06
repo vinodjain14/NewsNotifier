@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -32,6 +33,7 @@ import com.example.pulse.ui.components.GradientDirection
 fun ReadingListScreen(
     readingListManager: ReadingListManager,
     onNavigateBack: () -> Unit,
+    onNavigateToNotificationDetail: (com.example.pulse.data.NotificationItem) -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
     val scope = rememberCoroutineScope()
@@ -132,6 +134,10 @@ fun ReadingListScreen(
                     items(readingList) { item ->
                         ReadingListItemCard(
                             item = item,
+                            onClick = {
+                                // Navigate to notification detail screen
+                                onNavigateToNotificationDetail(item)
+                            },
                             onRemove = {
                                 readingListManager.removeFromReadingList(item.id)
                                 scope.launch {
@@ -173,10 +179,13 @@ fun ReadingListScreen(
 @Composable
 private fun ReadingListItemCard(
     item: com.example.pulse.data.NotificationItem,
+    onClick: () -> Unit,
     onRemove: () -> Unit
 ) {
     ElevatedModernCard(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -184,7 +193,11 @@ private fun ReadingListItemCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onClick() }
+                ) {
                     Text(
                         text = item.title,
                         style = MaterialTheme.typography.titleMedium,
