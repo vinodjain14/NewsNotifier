@@ -24,6 +24,7 @@ import com.example.pulse.data.NotificationItem
 import com.example.pulse.ui.theme.AppTypography
 import com.example.pulse.ui.theme.PulseTheme
 import com.example.pulse.utils.*
+import com.example.pulse.workers.SelfRepeatingWorkerManager
 import com.example.pulse.workers.SubscriptionWorker
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.ktx.Firebase
@@ -57,6 +58,13 @@ class MainActivity : ComponentActivity() {
     private lateinit var readingListManager: ReadingListManager
     private var initialNotificationId: String? = null
 
+    companion object {
+        private const val TAG = "MainActivity"
+        private const val PREF_USE_FAST_FETCH = "use_fast_fetch"
+        private const val FAST_FETCH_INTERVAL = 5L // 5 minutes
+        private const val STANDARD_FETCH_INTERVAL = 15L // 15 minutes
+    }
+
     private val googleSignInLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -89,6 +97,20 @@ class MainActivity : ComponentActivity() {
             putBoolean("is_first_time", isFirstTime)
             apply()
         }
+    }
+
+    private fun useFastFetch(): Boolean {
+        val prefs = getSharedPreferences("pulse_prefs", MODE_PRIVATE)
+        return prefs.getBoolean(PREF_USE_FAST_FETCH, true) // Default to fast fetch
+    }
+
+    private fun setUseFastFetch(enabled: Boolean) {
+        val prefs = getSharedPreferences("pulse_prefs", MODE_PRIVATE)
+        with(prefs.edit()) {
+            putBoolean(PREF_USE_FAST_FETCH, enabled)
+            apply()
+        }
+        Log.d(TAG, "Fast fetch ${if (enabled) "enabled" else "disabled"}")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -165,7 +187,12 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val updateSubscriptionsAndScheduleWorker: () -> Unit = {
-                        scheduleSubscriptionWorker()
+                        configureDataFetching()
+                    }
+
+                    // Configure data fetching on app start
+                    LaunchedEffect(Unit) {
+                        configureDataFetching()
                     }
 
                     when (currentScreen) {
@@ -180,32 +207,43 @@ class MainActivity : ComponentActivity() {
                             },
                             snackbarHostState = snackbarHostState
                         )
-                        Screen.Onboarding -> OnboardingScreen(
+
+                        Screen.Onboarding -> UnifiedSubscriptionScreen(
+                            mode = SubscriptionScreenMode.ONBOARDING,
                             subscriptionManager = subscriptionManager,
-                            onOnboardingComplete = {
+                            onComplete = {
                                 setFirstTimeUser(false)
+                                updateSubscriptionsAndScheduleWorker()
                                 currentScreen = Screen.AllNotifications
                             }
                         )
+
                         Screen.ChooseAccount -> ChooseAccountScreen(
                             authManager = authManager,
                             onNavigateToSelection = { currentScreen = Screen.AllNotifications },
                             onNavigateBack = { currentScreen = Screen.Welcome },
                             snackbarHostState = snackbarHostState
                         )
+
                         Screen.PulseMarket -> PulseMarketScreen(
                             onNavigateToAllNotifications = { currentScreen = Screen.AllNotifications },
                             onNavigateToManageSubscriptions = { currentScreen = Screen.Manage },
                             onNavigateToMyProfile = { currentScreen = Screen.MyProfile }
                         )
-                        Screen.Manage -> ManageSubscriptionsScreen(
+
+                        Screen.Manage -> UnifiedSubscriptionScreen(
+                            mode = SubscriptionScreenMode.MANAGEMENT,
                             subscriptionManager = subscriptionManager,
-                            onSubscriptionsChanged = updateSubscriptionsAndScheduleWorker,
-                            onNavigateToSelection = { currentScreen = Screen.AllNotifications },
+                            onComplete = {
+                                updateSubscriptionsAndScheduleWorker()
+                                currentScreen = Screen.AllNotifications
+                            },
+                            onNavigateBack = { currentScreen = Screen.AllNotifications },
                             onNavigateToAllNotifications = { currentScreen = Screen.AllNotifications },
                             onNavigateToReadingList = { currentScreen = Screen.ReadingList },
                             snackbarHostState = snackbarHostState
                         )
+
                         Screen.MyProfile -> MyProfileScreen(
                             authManager = authManager,
                             onNavigateToSelection = { currentScreen = Screen.AllNotifications },
@@ -215,6 +253,7 @@ class MainActivity : ComponentActivity() {
                             onNavigateToBackupRestore = { currentScreen = Screen.BackupRestore },
                             snackbarHostState = snackbarHostState
                         )
+
                         Screen.AllNotifications -> {
                             AllNotificationsScreen(
                                 onNavigateToManageSubscriptions = { currentScreen = Screen.Manage },
@@ -233,6 +272,7 @@ class MainActivity : ComponentActivity() {
                                 onDispose { initialNotificationId = null }
                             }
                         }
+
                         Screen.ReadingList -> ReadingListScreen(
                             readingListManager = readingListManager,
                             onNavigateBack = {
@@ -244,6 +284,7 @@ class MainActivity : ComponentActivity() {
                             },
                             snackbarHostState = snackbarHostState
                         )
+
                         Screen.NotificationDetail -> {
                             selectedNotification?.let { notification ->
                                 NotificationDetailScreen(
@@ -258,19 +299,23 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
+
                         Screen.AccessibilitySettings -> AccessibilitySettingsScreen(
                             themeManager = themeManager,
                             onNavigateBack = { currentScreen = Screen.MyProfile },
                             snackbarHostState = snackbarHostState
                         )
+
                         Screen.BackupRestore -> BackupRestoreScreen(
                             subscriptionManager = subscriptionManager,
                             onNavigateBack = { currentScreen = Screen.MyProfile },
                             snackbarHostState = snackbarHostState
                         )
+
                         Screen.LoggedOut -> LoggedOutScreen(
                             onNavigateToWelcome = { currentScreen = Screen.Welcome }
                         )
+
                         Screen.Search -> SearchScreen(
                             onNavigateBack = { currentScreen = Screen.AllNotifications },
                             onAddSubscription = { subscription ->
@@ -297,15 +342,42 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun scheduleSubscriptionWorker() {
+    /**
+     * Configure data fetching based on preferences
+     */
+    private fun configureDataFetching() {
+        Log.d(TAG, "Configuring data fetching...")
+
+        // Stop existing workers first
+        SelfRepeatingWorkerManager.stopSelfRepeatingWork(this)
+        workManager.cancelUniqueWork("SubscriptionCheckWork")
+
+        if (useFastFetch()) {
+            // Use self-repeating worker for fast updates
+            Log.d(TAG, "Starting fast fetch mode: ${FAST_FETCH_INTERVAL}-minute intervals")
+            SelfRepeatingWorkerManager.startSelfRepeatingWork(this, FAST_FETCH_INTERVAL)
+        } else {
+            // Use standard periodic worker
+            Log.d(TAG, "Starting standard fetch mode: ${STANDARD_FETCH_INTERVAL}-minute intervals")
+            scheduleStandardSubscriptionWorker()
+        }
+    }
+
+    /**
+     * Schedule standard periodic worker (15+ minute intervals)
+     */
+    private fun scheduleStandardSubscriptionWorker() {
         val workName = "SubscriptionCheckWork"
-        val periodicWorkRequest = PeriodicWorkRequestBuilder<SubscriptionWorker>(15, TimeUnit.MINUTES)
-            .addTag(workName)
-            .build()
+        val periodicWorkRequest = PeriodicWorkRequestBuilder<SubscriptionWorker>(
+            STANDARD_FETCH_INTERVAL, TimeUnit.MINUTES
+        ).addTag(workName).build()
+
         workManager.enqueueUniquePeriodicWork(
             workName,
-            ExistingPeriodicWorkPolicy.KEEP,
+            ExistingPeriodicWorkPolicy.REPLACE,
             periodicWorkRequest
         )
+
+        Log.d(TAG, "Scheduled periodic worker for $STANDARD_FETCH_INTERVAL minutes")
     }
 }

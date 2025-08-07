@@ -93,6 +93,8 @@ dependencies {
     // JSON parsing
     implementation("com.google.code.gson:gson:2.10.1")
 
+    implementation("io.coil-kt:coil-compose:2.5.0")
+
     // SharedPreferences (already included in Android SDK)
     // DataStore (optional - for advanced preferences)
     // implementation("androidx.datastore:datastore-preferences:1.0.0")

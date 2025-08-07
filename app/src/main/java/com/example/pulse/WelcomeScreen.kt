@@ -16,7 +16,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,6 +45,9 @@ fun WelcomeScreen(
         colors = listOf(PulsePurple, PulseBlue)
     )
 
+    // State to manage which authentication method is shown
+    var showAuthOptions by remember { mutableStateOf(false) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -62,11 +65,23 @@ fun WelcomeScreen(
             Spacer(modifier = Modifier.height(40.dp))
             WelcomeCard()
             Spacer(modifier = Modifier.height(32.dp))
-            AuthButtons(
-                onSignInWithGoogle = onSignInWithGoogle,
-                onNavigateToChooseAccount = onNavigateToChooseAccount,
-                onContinueAsGuest = onNavigateToSelection
-            )
+
+            if (!showAuthOptions) {
+                // Initial simplified buttons
+                SimplifiedAuthButtons(
+                    onShowAuthOptions = { showAuthOptions = true },
+                    onContinueAsGuest = onNavigateToSelection
+                )
+            } else {
+                // Expanded authentication options
+                ExpandedAuthButtons(
+                    onSignInWithGoogle = onSignInWithGoogle,
+                    onNavigateToChooseAccount = onNavigateToChooseAccount,
+                    onContinueAsGuest = onNavigateToSelection,
+                    onBack = { showAuthOptions = false }
+                )
+            }
+
             Spacer(modifier = Modifier.height(40.dp))
             FeaturesSection()
         }
@@ -118,22 +133,68 @@ private fun WelcomeCard() {
 }
 
 @Composable
-private fun AuthButtons(
-    onSignInWithGoogle: () -> Unit,
-    onNavigateToChooseAccount: () -> Unit,
+private fun SimplifiedAuthButtons(
+    onShowAuthOptions: () -> Unit,
     onContinueAsGuest: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        // Primary sign-in button
+        GradientButton(
+            text = "Sign In",
+            icon = Icons.AutoMirrored.Filled.Login,
+            onClick = onShowAuthOptions
+        )
+
+        // Secondary guest option
+        TextButton(
+            onClick = onContinueAsGuest,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "Continue as Guest",
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExpandedAuthButtons(
+    onSignInWithGoogle: () -> Unit,
+    onNavigateToChooseAccount: () -> Unit,
+    onContinueAsGuest: () -> Unit,
+    onBack: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        // Back to simplified view
+        TextButton(
+            onClick = onBack,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "← Back",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 12.sp
+            )
+        }
+
+        // Google sign-in
         GradientButton(
             text = "Continue with Google",
             icon = Icons.Filled.AccountCircle,
             onClick = onSignInWithGoogle
         )
+
+        // Choose account option
         GlassButton(
             text = "Choose Account",
             icon = Icons.AutoMirrored.Filled.Login,
             onClick = onNavigateToChooseAccount
         )
+
+        // Guest option
         GlassButton(
             text = "Continue as Guest",
             icon = Icons.Filled.Person,
