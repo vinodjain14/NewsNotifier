@@ -13,7 +13,8 @@ data class NewsItem(
     var title: String,
     var url: String,
     val sourceName: String,
-    var timestamp: Long
+    var timestamp: Long,
+    val imageUrl: String? = null // Add this line
 )
 
 // Extension properties for NewsItem to match usage in SubscriptionWorker

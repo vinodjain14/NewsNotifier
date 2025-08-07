@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -36,6 +37,33 @@ import com.example.pulse.utils.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+// Category visual mapping
+private object CategoryVisuals {
+    private val categoryMap = mapOf(
+        "Finance" to CategoryInfo(Icons.Default.TrendingUp, Color(0xFF2E7D32)),
+        "Technology" to CategoryInfo(Icons.Default.Computer, Color(0xFF1976D2)),
+        "Sports" to CategoryInfo(Icons.Default.Sports, Color(0xFFE65100)),
+        "Politics" to CategoryInfo(Icons.Default.Gavel, Color(0xFF7B1FA2)),
+        "Health" to CategoryInfo(Icons.Default.LocalHospital, Color(0xFFD32F2F)),
+        "Entertainment" to CategoryInfo(Icons.Default.Movie, Color(0xFFF57C00)),
+        "Business" to CategoryInfo(Icons.Default.Business, Color(0xFF388E3C)),
+        "Science" to CategoryInfo(Icons.Default.Science, Color(0xFF0288D1)),
+        "World" to CategoryInfo(Icons.Default.Public, Color(0xFF5D4037)),
+        "Breaking" to CategoryInfo(Icons.Default.Emergency, Color(0xFFD32F2F)),
+        "General" to CategoryInfo(Icons.Default.Article, Color(0xFF616161))
+    )
+
+    data class CategoryInfo(val icon: ImageVector, val color: Color)
+
+    fun getIcon(category: String): ImageVector {
+        return categoryMap[category]?.icon ?: Icons.Default.Article
+    }
+
+    fun getColor(category: String): Color {
+        return categoryMap[category]?.color ?: Color(0xFF616161)
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -128,7 +156,9 @@ fun AllNotificationsScreen(
             containerColor = Color.Transparent,
             topBar = {
                 TopAppBar(
-                    title = { Text("Pulse Notifications", fontWeight = FontWeight.Bold, fontSize = 22.sp) },
+                    title = {
+                        Text("Pulse Notifications", fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                    },
                     actions = {
                         // Search toggle button
                         IconButton(onClick = {
@@ -144,19 +174,28 @@ fun AllNotificationsScreen(
                             )
                         }
 
+                        // Manual refresh button
                         IconButton(onClick = {
                             scope.launch {
                                 isLoading = true
-                                val notifications = withContext(Dispatchers.IO) {
-                                    DataFetcher.fetchAllFeeds()
+                                withContext(Dispatchers.IO) {
+                                    val notifications = DataFetcher.fetchAllFeeds()
+                                    NotificationHelper.addNotifications(notifications)
                                 }
-                                NotificationHelper.addNotifications(notifications)
                                 isLoading = false
                                 snackbarHostState.showSnackbar("Refreshed!")
                             }
                         }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Refresh Notifications")
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(Icons.Default.Refresh, contentDescription = "Refresh Notifications")
+                            }
                         }
+
                         Box {
                             IconButton(onClick = { showMenu = true }) {
                                 Icon(Icons.Default.MoreVert, contentDescription = "More Options")
@@ -277,7 +316,6 @@ fun AllNotificationsScreen(
                                 if (filteredNotifications.isNotEmpty()) {
                                     TextButton(
                                         onClick = {
-                                            // Expand all groups that have search results
                                             expandedGroups = groupedNotifications.keys.toSet()
                                         }
                                     ) {
@@ -301,84 +339,76 @@ fun AllNotificationsScreen(
                 }
             }
 
-            if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .padding(paddingValues)
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(vertical = 16.dp)
-                ) {
-                    // Show search hint when search is active but no query
-                    if (isSearchActive && searchQuery.isEmpty()) {
-                        item {
-                            SearchHintCard()
-                        }
+            LazyColumn(
+                modifier = Modifier
+                    .padding(paddingValues)
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(vertical = 16.dp)
+            ) {
+                // Show search hint when search is active but no query
+                if (isSearchActive && searchQuery.isEmpty()) {
+                    item {
+                        SearchHintCard()
                     }
+                }
 
-                    if (groupedNotifications.isEmpty() && searchQuery.isNotEmpty()) {
+                if (groupedNotifications.isEmpty() && searchQuery.isNotEmpty()) {
+                    item {
+                        NoSearchResultsCard(searchQuery = searchQuery)
+                    }
+                } else if (groupedNotifications.isEmpty() && searchQuery.isEmpty()) {
+                    item {
+                        EmptyNotificationsCard(filter = "All")
+                    }
+                } else {
+                    groupedNotifications.forEach { (category, notifications) ->
                         item {
-                            NoSearchResultsCard(searchQuery = searchQuery)
-                        }
-                    } else if (groupedNotifications.isEmpty() && searchQuery.isEmpty()) {
-                        item {
-                            EmptyNotificationsCard(filter = "All")
-                        }
-                    } else {
-                        groupedNotifications.forEach { (category, notifications) ->
-                            item {
-                                val isExpanded = expandedGroups.contains(category)
-                                val unreadCount = notifications.count { !it.isRead }
+                            val isExpanded = expandedGroups.contains(category)
+                            val unreadCount = notifications.count { !it.isRead }
 
-                                NotificationGroupHeader(
-                                    categoryName = category,
-                                    totalCount = notifications.size,
-                                    unreadCount = unreadCount,
-                                    isExpanded = isExpanded,
-                                    onToggle = {
-                                        expandedGroups = if (isExpanded) {
-                                            expandedGroups - category
-                                        } else {
-                                            expandedGroups + category
-                                        }
+                            EnhancedNotificationGroupHeader(
+                                categoryName = category,
+                                totalCount = notifications.size,
+                                unreadCount = unreadCount,
+                                isExpanded = isExpanded,
+                                onToggle = {
+                                    expandedGroups = if (isExpanded) {
+                                        expandedGroups - category
+                                    } else {
+                                        expandedGroups + category
+                                    }
+                                },
+                                isSearchResult = searchQuery.isNotEmpty()
+                            )
+                        }
+
+                        if (expandedGroups.contains(category)) {
+                            items(notifications, key = { it.id }) { notification ->
+                                val isBookmarked = readingList.any { it.id == notification.id }
+
+                                EnhancedNotificationCard(
+                                    notification = notification,
+                                    isBookmarked = isBookmarked,
+                                    searchQuery = searchQuery,
+                                    onNotificationClick = {
+                                        onNavigateToNotificationDetail(notification)
                                     },
-                                    isSearchResult = searchQuery.isNotEmpty()
-                                )
-                            }
-
-                            if (expandedGroups.contains(category)) {
-                                items(notifications, key = { it.id }) { notification ->
-                                    // Check if notification is in reading list
-                                    val isBookmarked = readingList.any { it.id == notification.id }
-
-                                    ModernNotificationCard(
-                                        notification = notification,
-                                        isBookmarked = isBookmarked,
-                                        searchQuery = searchQuery,
-                                        onNotificationClick = {
-                                            // Navigate to detail screen
-                                            onNavigateToNotificationDetail(notification)
-                                        },
-                                        onBookmarkClick = {
-                                            if (isBookmarked) {
-                                                readingListManager.removeFromReadingList(notification.id)
-                                                scope.launch {
-                                                    snackbarHostState.showSnackbar("Removed from reading list")
-                                                }
-                                            } else {
-                                                readingListManager.addToReadingList(notification)
-                                                scope.launch {
-                                                    snackbarHostState.showSnackbar("Added to reading list")
-                                                }
+                                    onBookmarkClick = {
+                                        if (isBookmarked) {
+                                            readingListManager.removeFromReadingList(notification.id)
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar("Removed from reading list")
+                                            }
+                                        } else {
+                                            readingListManager.addToReadingList(notification)
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar("Added to reading list")
                                             }
                                         }
-                                    )
-                                }
+                                    }
+                                )
                             }
                         }
                     }
@@ -388,6 +418,7 @@ fun AllNotificationsScreen(
     }
 }
 
+// Rest of the composables remain the same...
 @Composable
 private fun SearchHintCard() {
     ElevatedModernCard(
@@ -452,18 +483,12 @@ private fun NoSearchResultsCard(searchQuery: String) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
-            Text(
-                text = "Try different keywords or check your spelling",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                textAlign = TextAlign.Center
-            )
         }
     }
 }
 
 @Composable
-private fun NotificationGroupHeader(
+private fun EnhancedNotificationGroupHeader(
     categoryName: String,
     totalCount: Int,
     unreadCount: Int,
@@ -471,6 +496,9 @@ private fun NotificationGroupHeader(
     onToggle: () -> Unit,
     isSearchResult: Boolean = false
 ) {
+    val categoryColor = CategoryVisuals.getColor(categoryName)
+    val categoryIcon = CategoryVisuals.getIcon(categoryName)
+
     ElevatedModernCard(
         modifier = Modifier
             .fillMaxWidth()
@@ -484,36 +512,36 @@ private fun NotificationGroupHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(categoryColor.copy(alpha = 0.1f)),
+                    contentAlignment = Alignment.Center
                 ) {
+                    Icon(
+                        imageVector = categoryIcon,
+                        contentDescription = categoryName,
+                        tint = categoryColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Column {
                     Text(
                         text = categoryName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    if (isSearchResult) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search result",
-                            modifier = Modifier.size(16.dp),
-                            tint = Primary
-                        )
-                    }
-                }
-                if (unreadCount > 0) {
                     Text(
-                        text = "$unreadCount unread of $totalCount total",
+                        text = if (unreadCount > 0) "$unreadCount unread of $totalCount total" else "All $totalCount read",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    Text(
-                        text = "All $totalCount read",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Success
+                        color = if (unreadCount > 0) MaterialTheme.colorScheme.onSurfaceVariant else Success
                     )
                 }
             }
@@ -524,7 +552,7 @@ private fun NotificationGroupHeader(
             ) {
                 if (unreadCount > 0) {
                     Badge(
-                        containerColor = MaterialTheme.colorScheme.primary,
+                        containerColor = categoryColor,
                         contentColor = Color.White
                     ) {
                         Text(
@@ -543,7 +571,7 @@ private fun NotificationGroupHeader(
 }
 
 @Composable
-private fun ModernNotificationCard(
+private fun EnhancedNotificationCard(
     notification: NotificationItem,
     isBookmarked: Boolean,
     searchQuery: String = "",
@@ -555,6 +583,9 @@ private fun ModernNotificationCard(
     } else {
         MaterialTheme.colorScheme.surfaceVariant
     }
+
+    val categoryColor = CategoryVisuals.getColor(notification.category)
+    val categoryIcon = CategoryVisuals.getIcon(notification.category)
 
     ElevatedModernCard(
         modifier = Modifier.fillMaxWidth(),
@@ -570,14 +601,14 @@ private fun ModernNotificationCard(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Primary.copy(alpha = 0.1f)),
+                        .background(categoryColor.copy(alpha = 0.1f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = notification.sourceName.take(2).uppercase(),
-                        color = Primary,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                    Icon(
+                        imageVector = categoryIcon,
+                        contentDescription = notification.category,
+                        tint = categoryColor,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
 
@@ -586,46 +617,27 @@ private fun ModernNotificationCard(
                         .weight(1f)
                         .clickable { onNotificationClick() }
                 ) {
+                    Text(
+                        text = notification.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = if (notification.isRead) FontWeight.Normal else FontWeight.SemiBold
+                    )
+
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(
-                            text = notification.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = if (notification.isRead) FontWeight.Normal else FontWeight.SemiBold,
+                        Box(
                             modifier = Modifier
-                                .weight(1f)
-                                .padding(bottom = 4.dp, end = 8.dp)
+                                .size(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(categoryColor)
                         )
-
-                        // Read indicator and search match indicator
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (searchQuery.isNotEmpty() && (
-                                        notification.title.contains(searchQuery, ignoreCase = true) ||
-                                                notification.message.contains(searchQuery, ignoreCase = true)
-                                        )) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(RoundedCornerShape(3.dp))
-                                        .background(Success)
-                                )
-                            }
-
-                            if (!notification.isRead) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(Primary)
-                                )
-                            }
-                        }
+                        Text(
+                            text = notification.sourceName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
 
                     if (notification.message.isNotBlank()) {
@@ -633,7 +645,7 @@ private fun ModernNotificationCard(
                             text = notification.message,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                            modifier = Modifier.padding(bottom = 8.dp)
+                            modifier = Modifier.padding(vertical = 8.dp)
                         )
                     }
 
@@ -645,7 +657,6 @@ private fun ModernNotificationCard(
                 }
             }
 
-            // Action buttons
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -653,18 +664,14 @@ private fun ModernNotificationCard(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Save/Bookmark button
-                IconButton(
-                    onClick = onBookmarkClick
-                ) {
+                IconButton(onClick = onBookmarkClick) {
                     Icon(
                         imageVector = if (isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
                         contentDescription = if (isBookmarked) "Remove from reading list" else "Add to reading list",
-                        tint = if (isBookmarked) Primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = if (isBookmarked) categoryColor else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                // Read status indicator text
                 if (notification.isRead) {
                     Text(
                         text = "Read",
@@ -673,12 +680,11 @@ private fun ModernNotificationCard(
                         modifier = Modifier.padding(end = 8.dp)
                     )
                 } else {
-                    TextButton(
-                        onClick = onNotificationClick
-                    ) {
+                    TextButton(onClick = onNotificationClick) {
                         Text(
                             text = "Mark as Read",
-                            style = MaterialTheme.typography.labelSmall
+                            style = MaterialTheme.typography.labelSmall,
+                            color = categoryColor
                         )
                     }
                 }

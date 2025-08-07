@@ -37,16 +37,31 @@ object DataFetcher {
 
     private lateinit var applicationContext: Context
     private lateinit var subscriptionManager: SubscriptionManager
+    private var isInitialized = false
 
     fun init(context: Context, subManager: SubscriptionManager) {
-        if (!::applicationContext.isInitialized) {
+        if (!isInitialized) {
             applicationContext = context.applicationContext
             subscriptionManager = subManager
+            isInitialized = true
             Log.d(TAG, "DataFetcher initialized")
         }
     }
 
+    /**
+     * Check if DataFetcher has been properly initialized
+     */
+    fun isInitialized(): Boolean {
+        return isInitialized && ::applicationContext.isInitialized && ::subscriptionManager.isInitialized
+    }
+
     fun fetchAllFeeds(): List<NotificationItem> {
+        // Verify initialization
+        if (!isInitialized()) {
+            Log.e(TAG, "DataFetcher not properly initialized. Call init() first.")
+            return emptyList()
+        }
+
         val subscriptions: List<Subscription> = subscriptionManager.getSubscriptions()
         if (subscriptions.isEmpty()) {
             Log.d(TAG, "No subscriptions found. Skipping fetch.")
@@ -58,39 +73,53 @@ object DataFetcher {
         val globalSeenTitles = mutableSetOf<String>() // Global deduplication across all feeds
         val globalSeenLinks = mutableSetOf<String>()
 
+        var successfulFetches = 0
+        var failedFetches = 0
+
         subscriptions.forEach { subscription ->
             if (subscription.type == SubscriptionType.RSS_FEED) {
-                // Pass category along with market and URL
-                val feedNotifications = fetchRssFeed(subscription.sourceUrl, subscription.market, subscription.category)
+                try {
+                    // Pass category along with market and URL
+                    val feedNotifications = fetchRssFeed(subscription.sourceUrl, subscription.market, subscription.category)
 
-                // Apply global deduplication across all feeds
-                feedNotifications.forEach { notification ->
-                    val normalizedTitle = normalizeTitle(notification.title)
-                    val normalizedLink = notification.sourceUrl?.trim()
+                    if (feedNotifications.isNotEmpty()) {
+                        successfulFetches++
 
-                    val isDuplicateTitle = globalSeenTitles.contains(normalizedTitle)
-                    val isDuplicateLink = normalizedLink != null && globalSeenLinks.contains(normalizedLink)
+                        // Apply global deduplication across all feeds
+                        feedNotifications.forEach { notification ->
+                            val normalizedTitle = normalizeTitle(notification.title)
+                            val normalizedLink = notification.sourceUrl?.trim()
 
-                    if (!isDuplicateTitle && !isDuplicateLink) {
-                        allNotifications.add(notification)
-                        globalSeenTitles.add(normalizedTitle)
-                        if (normalizedLink != null) {
-                            globalSeenLinks.add(normalizedLink)
+                            val isDuplicateTitle = globalSeenTitles.contains(normalizedTitle)
+                            val isDuplicateLink = normalizedLink != null && globalSeenLinks.contains(normalizedLink)
+
+                            if (!isDuplicateTitle && !isDuplicateLink) {
+                                allNotifications.add(notification)
+                                globalSeenTitles.add(normalizedTitle)
+                                if (normalizedLink != null) {
+                                    globalSeenLinks.add(normalizedLink)
+                                }
+                            } else {
+                                val reason = when {
+                                    isDuplicateTitle && isDuplicateLink -> "duplicate title and link across feeds"
+                                    isDuplicateTitle -> "duplicate title across feeds"
+                                    isDuplicateLink -> "duplicate link across feeds"
+                                    else -> "unknown"
+                                }
+                                Log.d(TAG, "Skipped global duplicate: ${notification.title} from ${notification.sourceName} ($reason)")
+                            }
                         }
                     } else {
-                        val reason = when {
-                            isDuplicateTitle && isDuplicateLink -> "duplicate title and link across feeds"
-                            isDuplicateTitle -> "duplicate title across feeds"
-                            isDuplicateLink -> "duplicate link across feeds"
-                            else -> "unknown"
-                        }
-                        Log.d(TAG, "Skipped global duplicate: ${notification.title} from ${notification.sourceName} ($reason)")
+                        Log.d(TAG, "No new notifications from ${subscription.name}")
                     }
+                } catch (e: Exception) {
+                    failedFetches++
+                    Log.e(TAG, "Failed to fetch from ${subscription.name}: ${e.message}")
                 }
             }
         }
 
-        Log.d(TAG, "Total unique notifications after global deduplication: ${allNotifications.size}")
+        Log.d(TAG, "Fetch completed: $successfulFetches successful, $failedFetches failed. Total unique notifications: ${allNotifications.size}")
         return allNotifications.sortedByDescending { it.timestamp } // Sort by newest first
     }
 
@@ -101,6 +130,7 @@ object DataFetcher {
             val request = Request.Builder()
                 .url(feedUrl)
                 .addHeader("User-Agent", "Pulse/1.0 (News Aggregator)")
+                .addHeader("Accept", "application/rss+xml, application/xml, text/xml")
                 .build()
 
             val response = client.newCall(request).execute()
@@ -179,7 +209,9 @@ object DataFetcher {
 
                                         if (!isDuplicateTitle && !isDuplicateLink) {
                                             val titleLower = title!!.lowercase()
-                                            val isBreaking = titleLower.contains("breaking") || titleLower.contains("urgent") || titleLower.contains("alert")
+                                            val isBreaking = titleLower.contains("breaking") ||
+                                                    titleLower.contains("urgent") ||
+                                                    titleLower.contains("alert")
 
                                             // Generate unique ID based on content
                                             val uniqueId = generateUniqueId(title!!, normalizedLink, timestamp)
@@ -268,18 +300,23 @@ object DataFetcher {
     }
 
     private fun parseRssPubDate(pubDate: String): Long {
-        val format = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.US)
-        return try {
-            format.parse(pubDate)?.time ?: System.currentTimeMillis()
-        } catch (e: Exception) {
+        val formats = listOf(
+            SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.US),
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US),
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US),
+            SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss", Locale.US)
+        )
+
+        formats.forEach { format ->
             try {
-                val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
-                isoFormat.parse(pubDate)?.time ?: System.currentTimeMillis()
-            } catch (e2: Exception) {
-                Log.w(TAG, "Could not parse date: $pubDate. Using current time.")
-                System.currentTimeMillis()
+                return format.parse(pubDate)?.time ?: System.currentTimeMillis()
+            } catch (e: Exception) {
+                // Try next format
             }
         }
+
+        Log.w(TAG, "Could not parse date: $pubDate. Using current time.")
+        return System.currentTimeMillis()
     }
 
     private fun formatAgeForLog(ageInMs: Long): String {

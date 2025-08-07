@@ -29,7 +29,8 @@ data class NotificationItem(
     val isBreaking: Boolean = false,
     val isNew: Boolean = false,
     val tag: String? = null,
-    val sourceUrl: String? = null // Added for in-app browser
+    val sourceUrl: String? = null,
+    val imageUrl: String? = null
 ) {
     // Helper method to create a copy with read status changed
     fun markAsRead(): NotificationItem = this.copy(isRead = true)

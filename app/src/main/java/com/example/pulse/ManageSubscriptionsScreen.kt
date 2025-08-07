@@ -1,19 +1,26 @@
 package com.example.pulse
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -28,6 +35,91 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.launch
 import java.util.UUID
+
+// Enhanced category visual mapping with descriptions
+private object SubscriptionCategoryVisuals {
+    private val categoryMap = mapOf(
+        "Finance" to CategoryInfo(
+            icon = Icons.Default.TrendingUp,
+            color = Color(0xFF2E7D32),
+            description = "Market trends, stocks, and financial news"
+        ),
+        "Technology" to CategoryInfo(
+            icon = Icons.Default.Computer,
+            color = Color(0xFF1976D2),
+            description = "Latest tech innovations and gadgets"
+        ),
+        "Sports" to CategoryInfo(
+            icon = Icons.Default.Sports,
+            color = Color(0xFFE65100),
+            description = "Games, scores, and sports updates"
+        ),
+        "Politics" to CategoryInfo(
+            icon = Icons.Default.Gavel,
+            color = Color(0xFF7B1FA2),
+            description = "Government news and policy updates"
+        ),
+        "Health" to CategoryInfo(
+            icon = Icons.Default.LocalHospital,
+            color = Color(0xFFD32F2F),
+            description = "Medical news and health tips"
+        ),
+        "Entertainment" to CategoryInfo(
+            icon = Icons.Default.Movie,
+            color = Color(0xFFF57C00),
+            description = "Movies, TV shows, and celebrity news"
+        ),
+        "Business" to CategoryInfo(
+            icon = Icons.Default.Business,
+            color = Color(0xFF388E3C),
+            description = "Corporate news and market analysis"
+        ),
+        "Science" to CategoryInfo(
+            icon = Icons.Default.Science,
+            color = Color(0xFF0288D1),
+            description = "Research breakthroughs and discoveries"
+        ),
+        "World" to CategoryInfo(
+            icon = Icons.Default.Public,
+            color = Color(0xFF5D4037),
+            description = "International news and global events"
+        ),
+        "Breaking" to CategoryInfo(
+            icon = Icons.Default.Emergency,
+            color = Color(0xFFD32F2F),
+            description = "Urgent and breaking news alerts"
+        ),
+        "General" to CategoryInfo(
+            icon = Icons.Default.Article,
+            color = Color(0xFF616161),
+            description = "General news and miscellaneous updates"
+        ),
+        "Companies" to CategoryInfo(
+            icon = Icons.Default.Domain,
+            color = Color(0xFF00695C),
+            description = "Company announcements and corporate news"
+        ),
+        "Earnings" to CategoryInfo(
+            icon = Icons.Default.Assessment,
+            color = Color(0xFF1565C0),
+            description = "Quarterly reports and earnings updates"
+        )
+    )
+
+    data class CategoryInfo(val icon: ImageVector, val color: Color, val description: String)
+
+    fun getIcon(category: String): ImageVector {
+        return categoryMap[category]?.icon ?: Icons.Default.Article
+    }
+
+    fun getColor(category: String): Color {
+        return categoryMap[category]?.color ?: Color(0xFF616161)
+    }
+
+    fun getDescription(category: String): String {
+        return categoryMap[category]?.description ?: "Stay updated with the latest news"
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,11 +171,21 @@ fun ManageSubscriptionsScreen(
             topBar = {
                 TopAppBar(
                     title = {
-                        Text(
-                            "Manage Subscriptions",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ManageAccounts,
+                                contentDescription = null,
+                                tint = Primary
+                            )
+                            Text(
+                                "Manage Subscriptions",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 20.sp
+                            )
+                        }
                     },
                     navigationIcon = {
                         IconButton(onClick = onNavigateToSelection) {
@@ -112,17 +214,33 @@ fun ManageSubscriptionsScreen(
                     .padding(horizontal = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Header section
+                // Enhanced header section
                 ElevatedModernCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 16.dp)
                 ) {
                     Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        // Icon and title
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Primary.copy(alpha = 0.1f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp),
+                                tint = Primary
+                            )
+                        }
+
                         Text(
                             text = "Choose Your Interests",
                             style = MaterialTheme.typography.headlineSmall,
@@ -135,22 +253,38 @@ fun ManageSubscriptionsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
-                        Text(
-                            text = "${selectedCategories.size} of ${categories.size} categories selected",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Primary
-                        )
+                        // Progress indicator
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            LinearProgressIndicator(
+                                progress = selectedCategories.size.toFloat() / categories.size.toFloat(),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp)),
+                                color = Primary,
+                                trackColor = Primary.copy(alpha = 0.1f)
+                            )
+                            Text(
+                                text = "${selectedCategories.size}/${categories.size}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
 
-                // Categories list
+                // Categories grid/list
                 LazyColumn(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
                     items(categories) { category ->
-                        CategorySelectionCard(
+                        ModernCategorySelectionCard(
                             category = category,
                             isSelected = selectedCategories.contains(category),
                             onToggle = {
@@ -164,93 +298,193 @@ fun ManageSubscriptionsScreen(
                     }
                 }
 
-                // Save button
-                AnimatedGradientButton(
-                    text = "Save Changes",
-                    onClick = {
-                        // Create new subscriptions based on selected categories
-                        val newSubscriptions = marketList
-                            .filter { it.category in selectedCategories }
-                            .map { marketFeed ->
-                                Subscription(
-                                    id = UUID.randomUUID().toString(),
-                                    name = marketFeed.websiteName,
-                                    type = SubscriptionType.RSS_FEED,
-                                    sourceUrl = marketFeed.url,
-                                    market = marketFeed.market,
-                                    category = marketFeed.category
-                                )
-                            }
+                // Enhanced save button
+                AnimatedVisibility(
+                    visible = selectedCategories.isNotEmpty(),
+                    enter = slideInVertically() + fadeIn(),
+                    exit = slideOutVertically() + fadeOut()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "You'll receive notifications from ${selectedCategories.size} categor${if (selectedCategories.size == 1) "y" else "ies"}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
-                        // Update subscriptions
-                        subscriptionManager.overwriteSubscriptions(newSubscriptions)
-                        onSubscriptionsChanged()
+                        AnimatedGradientButton(
+                            text = "Save Changes",
+                            onClick = {
+                                // Create new subscriptions based on selected categories
+                                val newSubscriptions = marketList
+                                    .filter { it.category in selectedCategories }
+                                    .map { marketFeed ->
+                                        Subscription(
+                                            id = UUID.randomUUID().toString(),
+                                            name = marketFeed.websiteName,
+                                            type = SubscriptionType.RSS_FEED,
+                                            sourceUrl = marketFeed.url,
+                                            market = marketFeed.market,
+                                            category = marketFeed.category
+                                        )
+                                    }
 
-                        scope.launch {
-                            snackbarHostState.showSnackbar(
-                                "${selectedCategories.size} categories selected. Subscriptions updated!"
-                            )
-                        }
-                    },
-                    enabled = selectedCategories.isNotEmpty(),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
-                    icon = Icons.Default.Check
-                )
+                                // Update subscriptions
+                                subscriptionManager.overwriteSubscriptions(newSubscriptions)
+                                onSubscriptionsChanged()
+
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        "✨ Subscriptions updated! You'll receive notifications from ${selectedCategories.size} categories."
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            icon = Icons.Default.Check
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun CategorySelectionCard(
+private fun ModernCategorySelectionCard(
     category: String,
     isSelected: Boolean,
     onToggle: () -> Unit
 ) {
-    ElevatedModernCard(
-        onClick = onToggle,
-        modifier = Modifier.fillMaxWidth(),
-        containerColor = if (isSelected) {
-            Primary.copy(alpha = 0.1f)
+    val categoryColor = SubscriptionCategoryVisuals.getColor(category)
+    val categoryIcon = SubscriptionCategoryVisuals.getIcon(category)
+    val categoryDescription = SubscriptionCategoryVisuals.getDescription(category)
+
+    // Animation states
+    val scale by animateFloatAsState(
+        targetValue = if (isSelected) 1.02f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)
+    )
+
+    val cardColor by animateColorAsState(
+        targetValue = if (isSelected) {
+            categoryColor.copy(alpha = 0.08f)
         } else {
             MaterialTheme.colorScheme.surface
-        }
+        },
+        animationSpec = tween(300)
+    )
+
+    val interactionSource = remember { MutableInteractionSource() }
+
+    ElevatedModernCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(scale)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null
+            ) { onToggle() },
+        containerColor = cardColor
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = category,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (isSelected) Primary else MaterialTheme.colorScheme.onSurface
-                )
-
-                Text(
-                    text = if (isSelected) "Selected" else "Tap to select",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (isSelected)
-                        Primary.copy(alpha = 0.7f)
-                    else
-                        MaterialTheme.colorScheme.onSurfaceVariant
+            // Enhanced category icon
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(
+                        if (isSelected)
+                            categoryColor.copy(alpha = 0.15f)
+                        else
+                            categoryColor.copy(alpha = 0.08f)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = categoryIcon,
+                    contentDescription = category,
+                    tint = categoryColor,
+                    modifier = Modifier.size(28.dp)
                 )
             }
 
-            Checkbox(
-                checked = isSelected,
-                onCheckedChange = { onToggle() },
-                colors = CheckboxDefaults.colors(
-                    checkedColor = Primary,
-                    uncheckedColor = MaterialTheme.colorScheme.outline
+            // Content section
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = category,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isSelected) categoryColor else MaterialTheme.colorScheme.onSurface
                 )
-            )
+
+                Text(
+                    text = categoryDescription,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isSelected)
+                        categoryColor.copy(alpha = 0.8f)
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2
+                )
+
+                // Selection status
+                AnimatedVisibility(
+                    visible = isSelected,
+                    enter = fadeIn() + scaleIn(),
+                    exit = fadeOut() + scaleOut()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = categoryColor
+                        )
+                        Text(
+                            text = "Selected",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = categoryColor,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            // Modern selection indicator
+            AnimatedVisibility(
+                visible = isSelected,
+                enter = scaleIn() + fadeIn(),
+                exit = scaleOut() + fadeOut()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(categoryColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Selected",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
         }
     }
 }
